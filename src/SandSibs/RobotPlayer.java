@@ -185,7 +185,103 @@ public strictfp class RobotPlayer {
     }
 
     static void runLandscaper() throws GameActionException {
+        if(LSGoNorth){
+            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.EAST)){
+                rc.digDirt(Direction.EAST);
+                LSDigTime = false;
+            }
+            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.NORTH) && !(moveOnce)){
+                rc.depositDirt(Direction.NORTH);
+                LSDigTime = true;
+                moveOnce = true;
+            }
+            else{
+                if(rc.isReady() && rc.canMove(Direction.NORTH)){
+                    rc.move(Direction.NORTH);
+                    LSGoNorthCount++;
+                    moveOnce = false;
+                }
+            }
+            if(LSGoNorthCount == 2){
+                LSGoNorthCount = 0;
+                LSGoNorth = false;
+                LSGoWest = true;
+            }
+        }
 
+        else if(LSGoWest){
+            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.NORTH)){
+                rc.digDirt(Direction.NORTH);
+                LSDigTime = false;
+            }
+            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.WEST) && !(moveOnce)){
+                rc.depositDirt(Direction.WEST);
+                LSDigTime = true;
+                moveOnce = true;
+            }
+            else{
+                if(rc.isReady() && rc.canMove(Direction.WEST)){
+                    rc.move(Direction.WEST);
+                    LSGoWestCount++;
+                    moveOnce = false;
+                }
+            }
+            if(LSGoWestCount == 2){
+                LSGoWestCount = 0;
+                LSGoWest = false;
+                LSGoSouth = true;
+            }
+        }
+
+        else if(LSGoSouth){
+            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.WEST)){
+                rc.digDirt(Direction.WEST);
+                LSDigTime = false;
+            }
+            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.SOUTH) && !(moveOnce)){
+                rc.depositDirt(Direction.SOUTH);
+                LSDigTime = true;
+                moveOnce = true;
+            }
+            else{
+                if(rc.isReady() && rc.canMove(Direction.SOUTH)){
+                    rc.move(Direction.SOUTH);
+                    LSGoSouthCount++;
+                    moveOnce = false;
+                }
+            }
+            if(LSGoSouthCount == 2){
+                LSGoSouthCount = 0;
+                LSGoSouth = false;
+                LSGoEast = true;
+            }
+        }
+
+        else if(LSGoEast){
+            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.SOUTH)){
+                rc.digDirt(Direction.SOUTH);
+                LSDigTime = false;
+            }
+            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.EAST) && !(moveOnce)){
+                rc.depositDirt(Direction.EAST);
+                LSDigTime = true;
+                moveOnce = true;
+            }
+            else{
+                if(rc.isReady() && rc.canMove(Direction.EAST)){
+                    rc.move(Direction.EAST);
+                    LSGoEastCount++;
+                    moveOnce = false;
+                }
+            }
+            if(LSGoEastCount == 2){
+                LSGoEastCount = 0;
+                LSGoEast = false;
+                LSGoNorth = true;
+            }
+        }
+        
+        else;
     }
 
     static void runDeliveryDrone() throws GameActionException {

@@ -1,4 +1,6 @@
 build/
 client/
 matches/
-
+.DS_Store
+.gradle/
+src/.DS_Store

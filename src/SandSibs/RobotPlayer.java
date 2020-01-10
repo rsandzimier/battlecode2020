@@ -102,8 +102,9 @@ public strictfp class RobotPlayer {
         // rc.setIndicatorDot(ml,0,0,255);
         updateMap();
 
-        for (Direction dir : directions)
-            tryBuild(RobotType.MINER, dir);
+        for (Direction dir : directions){
+                tryBuild(RobotType.MINER, dir)
+        }
     }
 
     static void runMiner() throws GameActionException {
@@ -152,6 +153,11 @@ public strictfp class RobotPlayer {
                 tryMove(randomDirection());
             }
         }
+        else if(buildDS && rc.getTeamSoup() >= 150){
+            if(tryBuild(RobotType.DESIGN_SCHOOL,Direction.NORTH)){
+                buildDS = false;
+            }
+        }
         else{
             tryMove(randomDirection());
         }   
@@ -185,103 +191,7 @@ public strictfp class RobotPlayer {
     }
 
     static void runLandscaper() throws GameActionException {
-        if(LSGoNorth){
-            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.EAST)){
-                rc.digDirt(Direction.EAST);
-                LSDigTime = false;
-            }
-            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.NORTH) && !(moveOnce)){
-                rc.depositDirt(Direction.NORTH);
-                LSDigTime = true;
-                moveOnce = true;
-            }
-            else{
-                if(rc.isReady() && rc.canMove(Direction.NORTH)){
-                    rc.move(Direction.NORTH);
-                    LSGoNorthCount++;
-                    moveOnce = false;
-                }
-            }
-            if(LSGoNorthCount == 2){
-                LSGoNorthCount = 0;
-                LSGoNorth = false;
-                LSGoWest = true;
-            }
-        }
 
-        else if(LSGoWest){
-            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.NORTH)){
-                rc.digDirt(Direction.NORTH);
-                LSDigTime = false;
-            }
-            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.WEST) && !(moveOnce)){
-                rc.depositDirt(Direction.WEST);
-                LSDigTime = true;
-                moveOnce = true;
-            }
-            else{
-                if(rc.isReady() && rc.canMove(Direction.WEST)){
-                    rc.move(Direction.WEST);
-                    LSGoWestCount++;
-                    moveOnce = false;
-                }
-            }
-            if(LSGoWestCount == 2){
-                LSGoWestCount = 0;
-                LSGoWest = false;
-                LSGoSouth = true;
-            }
-        }
-
-        else if(LSGoSouth){
-            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.WEST)){
-                rc.digDirt(Direction.WEST);
-                LSDigTime = false;
-            }
-            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.SOUTH) && !(moveOnce)){
-                rc.depositDirt(Direction.SOUTH);
-                LSDigTime = true;
-                moveOnce = true;
-            }
-            else{
-                if(rc.isReady() && rc.canMove(Direction.SOUTH)){
-                    rc.move(Direction.SOUTH);
-                    LSGoSouthCount++;
-                    moveOnce = false;
-                }
-            }
-            if(LSGoSouthCount == 2){
-                LSGoSouthCount = 0;
-                LSGoSouth = false;
-                LSGoEast = true;
-            }
-        }
-
-        else if(LSGoEast){
-            if(LSDigTime && rc.isReady() && rc.canDigDirt(Direction.SOUTH)){
-                rc.digDirt(Direction.SOUTH);
-                LSDigTime = false;
-            }
-            else if(!(LSDigTime) && rc.isReady() && rc.canDepositDirt(Direction.EAST) && !(moveOnce)){
-                rc.depositDirt(Direction.EAST);
-                LSDigTime = true;
-                moveOnce = true;
-            }
-            else{
-                if(rc.isReady() && rc.canMove(Direction.EAST)){
-                    rc.move(Direction.EAST);
-                    LSGoEastCount++;
-                    moveOnce = false;
-                }
-            }
-            if(LSGoEastCount == 2){
-                LSGoEastCount = 0;
-                LSGoEast = false;
-                LSGoNorth = true;
-            }
-        }
-        
-        else;
     }
 
     static void runDeliveryDrone() throws GameActionException {
@@ -589,14 +499,14 @@ public strictfp class RobotPlayer {
 
 
     static void tryBlockchain() throws GameActionException {
-        if (turnCount < 3) {
+        /*if (turnCount < 3) {
             int[] message = new int[10];
             for (int i = 0; i < 10; i++) {
                 message[i] = 123;
             }
             if (rc.canSubmitTransaction(message, 10))
                 rc.submitTransaction(message, 10);
-        }
+        }*/
         // System.out.println(rc.getRoundMessages(turnCount-1));
     }
 }

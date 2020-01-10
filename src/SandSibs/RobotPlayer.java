@@ -15,7 +15,7 @@ public strictfp class RobotPlayer {
     private static class Square {
         int turn;
         boolean flooded;
-        int elevation; 
+        int elevation;
         int soup;
         int pollution;
         // unit/building
@@ -102,14 +102,13 @@ public strictfp class RobotPlayer {
         // rc.setIndicatorDot(ml,0,0,255);
         updateMap();
 
-        for (Direction dir : directions){
-                tryBuild(RobotType.MINER, dir)
-        }
+        for (Direction dir : directions)
+            tryBuild(RobotType.MINER, dir);
     }
 
     static void runMiner() throws GameActionException {
         // tryBlockchain();
-        // 
+        //
         // if (tryMove(randomDirection()))
            // System.out.println("I moved!");
         //tryBuild(randomSpawnedByMiner(), randomDirection());
@@ -131,8 +130,8 @@ public strictfp class RobotPlayer {
         // EXTRA COMPUTATION
         System.out.println("START: "+Clock.getBytecodeNum());
         if (tryRefine()){
-            ;        
-        }        
+            ;
+        }
         else if (rc.getSoupCarrying() == 100 && HQ_loc != null){ // Need GAME CONSTANT
             if (tryMove(rc.getLocation().directionTo(HQ_loc))){
                 ;
@@ -142,7 +141,7 @@ public strictfp class RobotPlayer {
             }
         }
         else if (tryMine()){
-        ;        
+        ;
         }
         else if (soup_deposits.size() > 0){
             MapLocation loc = soup_deposits.get(0);
@@ -153,21 +152,16 @@ public strictfp class RobotPlayer {
                 tryMove(randomDirection());
             }
         }
-        else if(buildDS && rc.getTeamSoup() >= 150){
-            if(tryBuild(RobotType.DESIGN_SCHOOL,Direction.NORTH)){
-                buildDS = false;
-            }
-        }
         else{
             tryMove(randomDirection());
-        }   
+        }
         System.out.println("MOVE: "+Clock.getBytecodeNum());
 
         updateMapDiscovered();
         System.out.println("DISCOVER: "+Clock.getBytecodeNum());
         updateMapSoupDeposits();
         System.out.println("SOUP: "+Clock.getBytecodeNum());
-        updateMapRobots(); 
+        updateMapRobots();
         System.out.println("ROBOTS: "+Clock.getBytecodeNum());
 
     }
@@ -199,7 +193,6 @@ public strictfp class RobotPlayer {
         if (!rc.isCurrentlyHoldingUnit()) {
             // See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
             RobotInfo[] robots = rc.senseNearbyRobots(GameConstants.DELIVERY_DRONE_PICKUP_RADIUS_SQUARED, enemy);
-
             if (robots.length > 0) {
                 // Pick up a first robot within range
                 rc.pickUpUnit(robots[0].getID());
@@ -238,7 +231,7 @@ public strictfp class RobotPlayer {
 
         MapLocation l = rc.getLocation();
 
-        int rad_sq = rc.getType().sensorRadiusSquared; 
+        int rad_sq = rc.getType().sensorRadiusSquared;
         double rad = Math.sqrt(rad_sq);
         int rad_int = (int) rad;
 
@@ -258,7 +251,7 @@ public strictfp class RobotPlayer {
                 MapLocation ml = new MapLocation(i,j);
                 if (rc.canSenseLocation(ml) && rc.onTheMap(ml))
                 {
-                // Square sq = 
+                // Square sq =
                 // map[i][j] = new Square(1,false,0,0);
 
                 map[i][j].turn = rc.getRoundNum();
@@ -298,7 +291,7 @@ public strictfp class RobotPlayer {
         System.out.println("ROBOTS"+Clock.getBytecodeNum());
 
         System.out.println("END"+Clock.getBytecodeNum());
-    } 
+    }
 
     static void updateSquare(int x, int y) throws GameActionException{
         MapLocation ml = new MapLocation(x,y);
@@ -306,7 +299,7 @@ public strictfp class RobotPlayer {
         // rc.setIndicatorDot(ml,0,0,255);
 
         if (rc.canSenseLocation(ml) && rc.onTheMap(ml)){
-            // Square sq = 
+            // Square sq =
             // map[i][j] = new Square(1,false,0,0);
             int soup_old = map[x][y].soup;
             map[x][y].turn = rc.getRoundNum();
@@ -337,7 +330,7 @@ public strictfp class RobotPlayer {
                         soup_deposits.remove(i);
                         break;
                     }
-                } 
+                }
             }
         }
     }
@@ -345,7 +338,7 @@ public strictfp class RobotPlayer {
     static void updateMapDiscovered() throws GameActionException{
         MapLocation current_location = rc.getLocation().subtract(last_move_direction);
 
-        int rad_sq = rc.getCurrentSensorRadiusSquared(); 
+        int rad_sq = rc.getCurrentSensorRadiusSquared();
         int rad_int = (int) Math.sqrt(rad_sq);
 
         // int min_x = l.x - rad_int;
@@ -366,7 +359,7 @@ public strictfp class RobotPlayer {
                 int dx = x - current_location.x;
                 int dy = (int) Math.sqrt(rad_sq - dx*dx);
 
-                int y = current_location.y + dy*signY; 
+                int y = current_location.y + dy*signY;
 
                 updateSquare(x,y);
             }
@@ -384,18 +377,18 @@ public strictfp class RobotPlayer {
                 int dy = y - current_location.y;
                 int dx = (int) Math.sqrt(rad_sq - dy*dy);
 
-                int x = current_location.x + dx*signX; 
+                int x = current_location.x + dx*signX;
 
                 updateSquare(x,y);
             }
         }
-    } 
+    }
 
     static void updateMapSoupDeposits() throws GameActionException{
         for (int i =  soup_deposits.size() - 1; i >= 0; i--){
             MapLocation loc = soup_deposits.get(i);
             updateSquare(loc.x, loc.y);
-        } 
+        }
     }
 
     static void updateMapRobots() throws GameActionException{
@@ -405,7 +398,7 @@ public strictfp class RobotPlayer {
                 HQ_loc = nr.getLocation();
             }
         }
-    }    
+    }
 
     static boolean tryMove() throws GameActionException {
         for (Direction dir : directions)
@@ -499,14 +492,14 @@ public strictfp class RobotPlayer {
 
 
     static void tryBlockchain() throws GameActionException {
-        /*if (turnCount < 3) {
+        if (turnCount < 3) {
             int[] message = new int[10];
             for (int i = 0; i < 10; i++) {
                 message[i] = 123;
             }
             if (rc.canSubmitTransaction(message, 10))
                 rc.submitTransaction(message, 10);
-        }*/
+        }
         // System.out.println(rc.getRoundMessages(turnCount-1));
     }
 }

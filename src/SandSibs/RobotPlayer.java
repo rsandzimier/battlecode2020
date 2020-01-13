@@ -137,7 +137,7 @@ public strictfp class RobotPlayer {
 
             moveToLocationUsingBugPathing(loc);
         }
-        else if(DSBuild && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, Direction.NORTH) && !(rc.getLocation().isWithinDistanceSquared(HQ_loc, 25))){
+        else if(DSBuild && rc.canBuildRobot(RobotType.DESIGN_SCHOOL, Direction.NORTH)){
             if(tryBuild(RobotType.DESIGN_SCHOOL, Direction.NORTH)){
                 DSBuild = false;
             }
@@ -160,14 +160,17 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-            for(Direction dir : directions)
-                tryBuild(RobotType.LANDSCAPER, dir);
+        if(LSBuild < 2){
+            for(Direction dir : directions){
+                if(tryBuild(RobotType.LANDSCAPER, dir)){
+                    LSBuild++;
+                }
+            }
+        }
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        /*for (Direction dir : directions)
-            tryBuild(RobotType.DELIVERY_DRONE, dir);
-            */
+        
     }
 
     static void runLandscaper() throws GameActionException {
@@ -220,7 +223,7 @@ public strictfp class RobotPlayer {
         MapLocation returnLoc = rc.getLocation();
         for(int i=0; i<16; i++){
             if(rc.canSenseLocation(wallLocation[i])){
-                if(rc.senseElevation(rc.getLocation()) > rc.senseElevation(wallLocation[i]) + 2*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
                     returnLoc = wallLocation[i];
                 }
             }
@@ -230,19 +233,7 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
-        /*Team enemy = rc.getTeam().opponent();
-        if (!rc.isCurrentlyHoldingUnit()) {
-            // See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
-            RobotInfo[] robots = rc.senseNearbyRobots(GameConstants.DELIVERY_DRONE_PICKUP_RADIUS_SQUARED, enemy);
-            if (robots.length > 0) {
-                // Pick up a first robot within range
-                rc.pickUpUnit(robots[0].getID());
-                System.out.println("I picked up " + robots[0].getID() + "!");
-            }
-        } else {
-            // No close robots, so search for robots within sight radius
-            tryMove(randomDirection());
-        }*/
+        
     }
 
     static void runNetGun() throws GameActionException {

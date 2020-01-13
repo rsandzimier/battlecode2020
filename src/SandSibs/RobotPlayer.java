@@ -646,11 +646,21 @@ public strictfp class RobotPlayer {
 
         if (left_steps <= right_steps){
             tryMove(path_result_left.direction);
+            if (path_result_left.direction == Direction.CENTER){
+                visited.clear();
+            }
         }
         else{
             tryMove(path_result_right.direction);
+            if (path_result_right.direction == Direction.CENTER){
+                visited.clear();
+            }
         }
         visited.add(rc.getLocation());
+    }
+
+    static boolean onTheMap(MapLocation location){
+        return (location.x >= 0 && location.x < map_width && location.y >= 0 && location.y < map_height);
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
@@ -668,11 +678,9 @@ public strictfp class RobotPlayer {
 
             for (int i = 0; i != directions.length; i++){
                 MapLocation destination = current_location.add(dir);
-
-                if (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) && !rc.senseFlooding(destination) &&
-                    Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3 &&
-                    !visited.contains(destination) &&! visited_plan.contains(destination))){
-
+                if (onTheMap(destination) && (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) &&
+                    !rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3 
+                    && !visited.contains(destination) &&! visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
                     // rc.setIndicatorDot(current_location,255,0,0);

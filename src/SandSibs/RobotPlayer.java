@@ -19,7 +19,8 @@ public strictfp class RobotPlayer {
     static MapLocation droneSpawnLocation;
     
     static int turnCount;
-    static boolean DSBuild = true, moveLS = true, wallLocSet = true;
+    static boolean BuildDrone = true, moveLS = true, wallLocSet = true;
+    static boolean enemtUnitInDrone = false;
     static int LSBuild = 0;
     
     static class Square {
@@ -253,7 +254,20 @@ public strictfp class RobotPlayer {
                     }
                 }
             } 
-
+            if (fulfillment_centers.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+                for (RobotStatus rs : miners){
+                    if (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                        Mission new_mission = new Mission();
+                        new_mission.mission_type = MissionType.BUILD;
+                        new_mission.location = HQ_loc;
+                        new_mission.robot_ids.add(rs.robot_id);
+                        new_mission.robot_type = RobotType.FULFILLMENT_CENTER;
+                        new_mission.distance = 1;
+                        mission_queue.add(new_mission);
+                        break;
+                    }
+                }
+            }
             if (design_schools.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
                 for (RobotStatus rs : miners){
                     if (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
@@ -390,8 +404,11 @@ public strictfp class RobotPlayer {
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        for(Direction dir : directions)
-            if(tryBuild(RobotType.DELIVERY_DRONE, dir));
+        if(BuildDrone){
+            for(Direction dir : directions){
+                if(tryBuild(RobotType.DELIVERY_DRONE, dir)){BuildDrone = false;}
+            }
+        }
     }
 
     static void runLandscaper() throws GameActionException {
@@ -462,15 +479,31 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
-        /*if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
+        if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
         Team ourTeam = rc.getTeam();
+        
+        if(rc.isCurrentlyHoldingUnit() && enemtUnitInDrone){
+            for(Direction dir : directions){
+                if(rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
+                    rc.dropUnit(dir);
+                    enemtUnitInDrone = false;
+                }
+                else;
+            }
+            tryMove(randomDirection());
+        }
+        
+        
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         for(int i=0; i < nearby_robots.length; i++){
             if(nearby_robots[i].getTeam() != ourTeam){
-                else if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())) rc.canPickUpUnit(nearby_robots[i].getID());
-                        else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+                if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
+                    rc.pickUpUnit(nearby_robots[i].getID());
+                    enemtUnitInDrone = true;
+                }
+                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
             }
-        }*/
+        }
     }
 
     static void runNetGun() throws GameActionException {

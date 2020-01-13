@@ -2,26 +2,28 @@ package SandSibs;
 import battlecode.common.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.HashMap; 
-import java.util.Map; 
-import java.util.HashSet; 
-import java.util.LinkedHashSet; 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 
-import java.util.Iterator; 
+import java.util.Iterator;
 
 public strictfp class RobotPlayer {
     static RobotController rc;
 
     static Direction[] directions = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTHEAST, Direction.NORTHWEST, Direction.SOUTHEAST, Direction.SOUTHWEST};
-    static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
-            RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
-
+    static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
+    static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
+    
     static int turnCount;
-
+    static boolean DSBuild = true, moveLS = true, wallLocSet = true;
+    static int LSBuild = 0;
+    
     static class Square {
         int turn;
         boolean flooded;
-        int elevation; 
+        int elevation;
         int soup;
         int pollution;
         // unit/building
@@ -57,13 +59,15 @@ public strictfp class RobotPlayer {
     }   
     enum Label
     {
-        MISSION_TYPE, ROBOT_ID, LOCATION, REPORT_TYPE, ROBOT_TYPE, ROBOT_TEAM, MISSION_SUCCESSFUL, SOUP_AMOUNT, END_MESSAGE;
+        MISSION_TYPE, ROBOT_ID, LOCATION, ROBOT_TYPE, DISTANCE, REPORT_TYPE, ROBOT_TEAM, MISSION_SUCCESSFUL, SOUP_AMOUNT, END_MESSAGE;
     }
 
     static class Mission{
         ArrayList<Integer> robot_ids = new ArrayList<Integer>();
         MissionType mission_type;
         MapLocation location;
+        RobotType robot_type;
+        int distance; 
     }    
 
     static class Report{
@@ -89,12 +93,14 @@ public strictfp class RobotPlayer {
 
     static ArrayList<Symmetry> possible_symmetries = new ArrayList<Symmetry>();
     static MapLocation[] symmetric_HQ_locs = new MapLocation[3];
+    
+    static MapLocation[] wallLocation = {null, null,  null, null, null, null,  null, null, null, null,  null, null, null, null,  null, null};
 
     static Square[][] map = new Square[GameConstants.MAP_MAX_WIDTH][GameConstants.MAP_MAX_HEIGHT];
 
     // static List<MapLocation> soup_deposits = new ArrayList<>();
-    static HashSet<MapLocation> soup_deposits = new HashSet<MapLocation>(); 
-    static HashSet<MapLocation> visited = new HashSet<MapLocation>(); 
+    static HashSet<MapLocation> soup_deposits = new HashSet<MapLocation>();
+    static HashSet<MapLocation> visited = new HashSet<MapLocation>();
 
     static MapLocation HQ_loc;
 
@@ -176,8 +182,8 @@ public strictfp class RobotPlayer {
             try {
                 // Here, we've separated the controls into a different method for each RobotType.
                 // You can add the missing ones or rewrite this into your own control structure.
-                if (enemy_HQ_loc != null)
-                    rc.setIndicatorDot(enemy_HQ_loc, 0,0,0);
+                // if (enemy_HQ_loc != null)
+                //     rc.setIndicatorDot(enemy_HQ_loc, 0,0,0);
 
                 System.out.println("I'm a " + rc.getType() + "! Location " + rc.getLocation());
                 switch (rc.getType()) {
@@ -206,7 +212,7 @@ public strictfp class RobotPlayer {
         readBlockChain();
         updateMapRobots();
         if (phase == Phase.EARLY){
-            if (miners.size() < 3){
+            if (miners.size() < 4){
                 for (Direction dir : directions)
                     if (tryBuild(RobotType.MINER, dir)){
                         RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
@@ -244,10 +250,41 @@ public strictfp class RobotPlayer {
                         break;
                     }
                 }
-            }         
+            } 
+
+            if (design_schools.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+                for (RobotStatus rs : miners){
+                    if (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                        Mission new_mission = new Mission();
+                        new_mission.mission_type = MissionType.BUILD;
+                        new_mission.location = HQ_loc;
+                        new_mission.robot_ids.add(rs.robot_id);
+                        new_mission.robot_type = RobotType.DESIGN_SCHOOL;
+                        new_mission.distance = 1;
+                        mission_queue.add(new_mission);
+                        break;
+                    }
+                }                
+            }
+            // If no needsScouting and builder is free        
         }
         tryBlockchain();
         mission_queue.clear();
+    }
+
+    static void tryBuildMission(Mission mission) throws GameActionException {
+        // If can build, build
+        // Otherwise, path toward
+        MapLocation current_location = rc.getLocation();
+        boolean built = false;
+        for (Direction dir : directions){
+            if (current_location.add(dir).isWithinDistanceSquared(mission.location, mission.distance*mission.distance) && 
+                tryBuild(mission.robot_type, dir)){
+                built = true;  
+                return;
+            }
+        }
+        moveToLocationUsingBugPathing(mission.location);
     }
 
     static boolean tryMineMission() throws GameActionException {
@@ -299,8 +336,6 @@ public strictfp class RobotPlayer {
             report_queue.add(report);
             active_missions.remove(0);
         }
-
-        // If can sense 
     }
 
     static void runMiner() throws GameActionException {
@@ -321,6 +356,9 @@ public strictfp class RobotPlayer {
             case SCOUT_MINE:
                 tryMineMission();
                 tryScoutMission(current_mission);
+                break;
+            case BUILD:
+                tryBuildMission(current_mission);
                 break;
             case MINE:
             default:
@@ -345,7 +383,8 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-
+            for(Direction dir : directions)
+                tryBuild(RobotType.LANDSCAPER, dir);
     }
 
     static void runFulfillmentCenter() throws GameActionException {
@@ -355,7 +394,62 @@ public strictfp class RobotPlayer {
     }
 
     static void runLandscaper() throws GameActionException {
-
+        if(HQ_loc != null && wallLocSet) {
+            setWallLocations();
+            wallLocSet = false;
+        }
+        
+        if(moveLS){
+            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
+            else if(HQ_loc != null) moveToLocationUsingBugPathing(HQ_loc);
+            else tryMove(randomDirection());
+        }
+        
+        else{
+            MapLocation buildLocation = checkElevationsOfWall();
+            if(buildLocation == rc.getLocation()){
+                if(rc.canDepositDirt(Direction.CENTER) && rc.isReady()) rc.depositDirt(Direction.CENTER);
+                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
+                else;
+            }
+            else if(rc.getLocation().isAdjacentTo(buildLocation)){
+                if(rc.canDepositDirt(rc.getLocation().directionTo(buildLocation)) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(buildLocation));
+                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
+                else;
+            }
+            else{
+                moveToLocationUsingBugPathing(buildLocation);
+            }
+                    
+        }
+        
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+    }
+    
+    static void setWallLocations() throws GameActionException {
+        int j = 0;
+        MapLocation start = HQ_loc.add(Direction.NORTHWEST).add(Direction.NORTHWEST);
+        for(int i=0; i<16; i++){
+            wallLocation[i] = start;
+            if(i%4 == 0 && i != 0) j++;
+            start = start.add(setWallDirections[j]);
+        }
+    }
+    
+    static MapLocation checkElevationsOfWall() throws GameActionException {
+        MapLocation returnLoc = rc.getLocation();
+        for(int i=0; i<16; i++){
+            if(rc.canSenseLocation(wallLocation[i])){
+                if(rc.senseElevation(rc.getLocation()) > rc.senseElevation(wallLocation[i]) + 2*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                    returnLoc = wallLocation[i];
+                }
+            }
+        }
+        
+        return returnLoc;
     }
 
     static void runDeliveryDrone() throws GameActionException {
@@ -363,7 +457,6 @@ public strictfp class RobotPlayer {
         if (!rc.isCurrentlyHoldingUnit()) {
             // See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
             RobotInfo[] robots = rc.senseNearbyRobots(GameConstants.DELIVERY_DRONE_PICKUP_RADIUS_SQUARED, enemy);
-
             if (robots.length > 0) {
                 // Pick up a first robot within range
                 rc.pickUpUnit(robots[0].getID());
@@ -420,7 +513,7 @@ public strictfp class RobotPlayer {
     static void updateMapDiscovered() throws GameActionException{
         MapLocation current_location = rc.getLocation().subtract(last_move_direction);
 
-        int rad_sq = rc.getCurrentSensorRadiusSquared(); 
+        int rad_sq = rc.getCurrentSensorRadiusSquared();
         int rad_int = (int) Math.sqrt(rad_sq);
 
         if (last_move_direction.getDeltaY() != 0)
@@ -435,7 +528,7 @@ public strictfp class RobotPlayer {
                 int dx = x - current_location.x;
                 int dy = (int) Math.sqrt(rad_sq - dx*dx);
 
-                int y = current_location.y + dy*signY; 
+                int y = current_location.y + dy*signY;
 
                 updateSquare(x,y);
             }
@@ -453,18 +546,18 @@ public strictfp class RobotPlayer {
                 int dy = y - current_location.y;
                 int dx = (int) Math.sqrt(rad_sq - dy*dy);
 
-                int x = current_location.x + dx*signX; 
+                int x = current_location.x + dx*signX;
 
                 updateSquare(x,y);
             }
         }
         last_move_direction = Direction.CENTER;
-    } 
+    }
 
     static void updateMapSoupDeposits() throws GameActionException{
         for (MapLocation loc : soup_deposits){
             updateSquare(loc.x, loc.y);
-        } 
+        }
     }
 
 
@@ -532,7 +625,7 @@ public strictfp class RobotPlayer {
                 symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
             }
         }
-    }   
+    }
 
     static void moveToLocationUsingBugPathing(MapLocation location) throws GameActionException{
         if (!goal_location.equals(location))
@@ -571,13 +664,13 @@ public strictfp class RobotPlayer {
             for (int i = 0; i != directions.length; i++){
                 MapLocation destination = current_location.add(dir);
 
-                if (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) && !rc.senseFlooding(destination) && 
-                    Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3 && 
+                if (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) && !rc.senseFlooding(destination) &&
+                    Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3 &&
                     !visited.contains(destination) &&! visited_plan.contains(destination))){
 
                     current_location = destination;
                     visited_plan.add(current_location);
-                    rc.setIndicatorDot(current_location,255,0,0);
+                    // rc.setIndicatorDot(current_location,255,0,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;
@@ -586,7 +679,7 @@ public strictfp class RobotPlayer {
                 
                 if (turn_left)
                     dir = dir.rotateLeft();
-                else 
+                else
                     dir = dir.rotateRight();
 
                 if (i == directions.length - 1){
@@ -909,6 +1002,22 @@ public strictfp class RobotPlayer {
                         report.location = new MapLocation(x,y);
                     }
                     break;
+                case ROBOT_TYPE:
+                    if (mission != null){
+                        mission.robot_type = RobotType.values()[getBitRange(message, start_bit, 4)];
+                        start_bit += 4;
+                    }
+                    if (report != null){
+                        report.robot_type = RobotType.values()[getBitRange(message, start_bit, 4)];
+                        start_bit += 4;
+                    }
+                    break;
+                case DISTANCE:
+                   if (mission != null){
+                        mission.distance = getBitRange(message, start_bit, 7);
+                        start_bit += 7;
+                    }
+                    break;
                 case REPORT_TYPE:
                     if (mission != null && on_mission){
                         if (!cleared_old_missions){
@@ -927,12 +1036,6 @@ public strictfp class RobotPlayer {
                     report = new Report(); 
                     report.report_type = ReportType.values()[getBitRange(message, start_bit, 5)];
                     start_bit += 5;                         
-                    break;
-                case ROBOT_TYPE:
-                    if (report != null){
-                        report.robot_type = RobotType.values()[getBitRange(message, start_bit, 4)];
-                        start_bit += 4;
-                    }
                     break;
                 case ROBOT_TEAM:
                    if (report != null){
@@ -1078,6 +1181,10 @@ public strictfp class RobotPlayer {
                     remaining_bits = addToMessage(message, remaining_bits, id, Label.ROBOT_ID.ordinal(), 15);
                 }
                 remaining_bits = addToMessage(message, remaining_bits, (mission.location.x << 6) + mission.location.y, Label.LOCATION.ordinal(), 12);
+                if (mission.mission_type == MissionType.BUILD){
+                    remaining_bits = addToMessage(message, remaining_bits, mission.robot_type.ordinal(), Label.ROBOT_TYPE.ordinal(), 4);
+                    remaining_bits = addToMessage(message, remaining_bits, mission.distance, Label.DISTANCE.ordinal(), 7);
+                }
                 i++;
             }
 
@@ -1177,3 +1284,38 @@ public strictfp class RobotPlayer {
         // System.out.println(rc.getRoundMessages(turnCount-1));
     }
 }
+/*
+ HQ:
+    Does its own thing
+    Limit amount of miners it creates
+ 
+ MINERS:
+    CONSTRUCTION
+        Would need a location and a buildingType
+    MINING
+        Unsure what is needed (I would assume the location of soup and location of refinery/HQ)
+    DEFAULT
+        Move randomly looking for soup
+
+ LANDSCAPERS:
+    BUILD WALL
+        Would need location to move to
+    DEFEND
+        Would need to know where location of HQ is
+ 
+ DRONES:
+    CARRY ROBOT
+        Would need a location of Robot and a location to drop
+    DEFEND
+        Location of enemy unit to pick up and location to drop (Water)
+ 
+ DESIGN_SCHOOL:
+    PRODUCE
+        just an indicator to produce a landscaper
+ 
+ FULFILLMENT_CENTER:
+    PRODUCE
+        just an indicator to produce a drone
+ 
+ 
+ */

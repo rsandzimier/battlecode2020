@@ -383,13 +383,8 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-        if(LSBuild < 2){
-            for(Direction dir : directions){
-                if(tryBuild(RobotType.LANDSCAPER, dir)){
-                    LSBuild++;
-                }
-            }
-        }
+        for(Direction dir : directions)
+            if(tryBuild(RobotType.LANDSCAPER, dir));
     }
 
     static void runFulfillmentCenter() throws GameActionException {
@@ -403,7 +398,8 @@ public strictfp class RobotPlayer {
         }
         
         if(moveLS){
-            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
+            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc)) moveToLocationUsingBugPathing(HQ_loc.add(Direction.NORTH).add(Direction.NORTH).add(Direction.NORTH));
+            else if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
             else if(HQ_loc != null) moveToLocationUsingBugPathing(HQ_loc);
             else tryMove(randomDirection());
         }
@@ -421,6 +417,13 @@ public strictfp class RobotPlayer {
                 else;
             }
             else{
+                /*for(int i=0; i<16; i++){
+                    if(wallLocation[i].isAdjacentT(rc.getLocation()) && Math.abs(rc.senseElevation(wallLocation[i]) - rc.getElevation(rc.getLocation())) > 3){
+                        if(rc.canDepositDirt(wallLocation[i]) && rc.isReady()) rc.depositDirt(wallLocation[i]);
+                        else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
+                        else;
+                    }
+                }*/
                 moveToLocationUsingBugPathing(buildLocation);
             }
                     

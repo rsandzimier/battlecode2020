@@ -16,6 +16,8 @@ public strictfp class RobotPlayer {
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
     
+    static MapLocation droneSpawnLocation;
+    
     static int turnCount;
     static boolean DSBuild = true, moveLS = true, wallLocSet = true;
     static int LSBuild = 0;
@@ -84,6 +86,7 @@ public strictfp class RobotPlayer {
     static class RobotStatus{
         int robot_id;
         ArrayList<Mission> missions;
+        MapLocation location;
 
         public RobotStatus(int id){
             robot_id = id;
@@ -100,6 +103,8 @@ public strictfp class RobotPlayer {
 
     // static List<MapLocation> soup_deposits = new ArrayList<>();
     static HashSet<MapLocation> soup_deposits = new HashSet<MapLocation>();
+    static ArrayList<MapLocation> soup_deposits_public = new ArrayList<MapLocation>();
+
     static HashSet<MapLocation> visited = new HashSet<MapLocation>();
 
     static MapLocation HQ_loc;
@@ -290,6 +295,7 @@ public strictfp class RobotPlayer {
                 report = new Report();
                 report.report_type = ReportType.ROBOT;
                 report.robot_type = mission.robot_type;
+                report.robot_team = true;
                 report.location = current_location.add(dir);
                 report.robot_id = rc.senseRobotAtLocation(report.location).getID();
                 report_queue.add(report);
@@ -300,20 +306,119 @@ public strictfp class RobotPlayer {
         moveToLocationUsingBugPathing(mission.location);
     }
 
+    static boolean adjacentToSoup() throws GameActionException{
+        for (Direction dir : directions){
+            if (rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseSoup(rc.getLocation().add(dir)) > 0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static int distanceSquaredToNearestRefinery() throws GameActionException{
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for (RobotInfo nr : nearby_robots){
+            if (rc.getTeam() == nr.getTeam() ){
+                int id = nr.getID();
+                if (nr.getType() == RobotType.REFINERY){
+                    RobotStatus rs = new RobotStatus(id);
+                    rs.location = nr.getLocation();
+                    refineries.add(rs);                
+                }
+            }
+        }
+        RobotStatus refinery = nearestRefinery();
+        if (refinery == null) return 100;
+        return rc.getLocation().distanceSquaredTo(refinery.location);
+    }
+
+    static RobotStatus nearestRefinery() throws GameActionException{
+        int dist = 100;
+        RobotStatus refinery = null;
+        for (RobotStatus rs : refineries){
+            int dist_rs = rc.getLocation().distanceSquaredTo(rs.location);
+            if (dist_rs < dist){
+                dist = dist_rs;
+                refinery = rs;
+            }
+        }
+        return refinery;
+    }
+
+    static boolean tryBuildRefinery() throws GameActionException{
+        for (Direction dir : directions){
+            MapLocation loc = rc.getLocation().add(dir);
+            if (!loc.isWithinDistanceSquared(HQ_loc, 8) && tryBuild(RobotType.REFINERY, dir)){
+                RobotStatus rs = new RobotStatus(rc.senseRobotAtLocation(loc).getID());
+                rs.location = loc;
+                refineries.add(rs);
+
+                Report report = new Report();
+                report.report_type = ReportType.ROBOT;
+                report.robot_type = RobotType.REFINERY;
+                report.location = rs.location;
+                report.robot_id = rs.robot_id;
+                report_queue.add(report);  
+                return true;
+            }
+        }
+        return false;
+    }
+
     static boolean tryMineMission() throws GameActionException {
         if (tryRefine()){
             ;
         }
-        else if (rc.getSoupCarrying() == 100 && HQ_loc != null){
-            moveToLocationUsingBugPathing(HQ_loc);
+        else if (distanceSquaredToNearestRefinery() > 10 && adjacentToSoup() && tryBuildRefinery()){
+            ; 
+        }
+        else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
+            RobotStatus nearest_refinery = nearestRefinery();
+            if (nearest_refinery != null){
+                moveToLocationUsingBugPathing(nearest_refinery.location);
+            }
+            else{
+                moveToLocationUsingBugPathing(HQ_loc);
+            }
         }
         else if (tryMine()){
-            ;        
+            boolean should_report = true;
+            for (MapLocation loc : soup_deposits_public){
+                if (rc.getLocation().isWithinDistanceSquared(loc, 25)){
+                    should_report = false;
+                    break;
+                }
+            }     
+            if (should_report){
+                Report report = new Report();
+                report.report_type = ReportType.SOUP;
+                report.location = rc.getLocation();
+                report_queue.add(report);
+                soup_deposits_public.add(rc.getLocation());
+            }
         }
         else if (soup_deposits.size() > 0){
             MapLocation loc = soup_deposits.iterator().next();
             moveToLocationUsingBugPathing(loc);
-        }          
+        }  
+        else if (soup_deposits_public.size() > 0){
+            MapLocation closest_loc = null;
+            MapLocation current_location = rc.getLocation();
+            int distance = 10000;
+            for (int i = soup_deposits_public.size()-1; i >= 0; i--){
+                int dist_i = current_location.distanceSquaredTo(soup_deposits_public.get(i));
+                if (dist_i == 0){
+                    soup_deposits_public.remove(i);
+                }
+                else if (dist_i < distance){
+                    closest_loc = soup_deposits_public.get(i);
+                    distance = dist_i;
+                }
+            }
+            if (closest_loc == null)
+                return false;
+            moveToLocationUsingBugPathing(closest_loc);
+        }        
         else{
             return false;
         }
@@ -397,14 +502,14 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
+        if (rc.getTeamSoup() >= 350)
             for(Direction dir : directions)
-                tryBuild(RobotType.LANDSCAPER, dir);
+                if(tryBuild(RobotType.LANDSCAPER, dir));
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        /*for (Direction dir : directions)
-            tryBuild(RobotType.DELIVERY_DRONE, dir);
-            */
+        for(Direction dir : directions)
+            if(tryBuild(RobotType.DELIVERY_DRONE, dir));
     }
 
     static void runLandscaper() throws GameActionException {
@@ -414,7 +519,8 @@ public strictfp class RobotPlayer {
         }
         
         if(moveLS){
-            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
+            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc)) moveToLocationUsingBugPathing(HQ_loc.add(Direction.NORTH).add(Direction.NORTH).add(Direction.NORTH));
+            else if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
             else if(HQ_loc != null) moveToLocationUsingBugPathing(HQ_loc);
             else tryMove(randomDirection());
         }
@@ -431,10 +537,17 @@ public strictfp class RobotPlayer {
                 else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
                 else;
             }
-            else{
+            else {
+                System.out.println("TRYING TO GO :: " + buildLocation);
                 moveToLocationUsingBugPathing(buildLocation);
+                for(int i=0;i<16;i++){
+                    if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(rc.getLocation()) - rc.senseElevation(wallLocation[i])) > 3){
+                        if(rc.canDepositDirt(rc.getLocation().directionTo(wallLocation[i])) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(wallLocation[i]));
+                        else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
+                        else;
+                    }
+                }
             }
-                    
         }
         
         updateMapDiscovered();
@@ -457,7 +570,7 @@ public strictfp class RobotPlayer {
         MapLocation returnLoc = rc.getLocation();
         for(int i=0; i<16; i++){
             if(rc.canSenseLocation(wallLocation[i])){
-                if(rc.senseElevation(rc.getLocation()) > rc.senseElevation(wallLocation[i]) + 2*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
                     returnLoc = wallLocation[i];
                 }
             }
@@ -467,18 +580,14 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
-        /*Team enemy = rc.getTeam().opponent();
-        if (!rc.isCurrentlyHoldingUnit()) {
-            // See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
-            RobotInfo[] robots = rc.senseNearbyRobots(GameConstants.DELIVERY_DRONE_PICKUP_RADIUS_SQUARED, enemy);
-            if (robots.length > 0) {
-                // Pick up a first robot within range
-                rc.pickUpUnit(robots[0].getID());
-                System.out.println("I picked up " + robots[0].getID() + "!");
+        /*if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
+        Team ourTeam = rc.getTeam();
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() != ourTeam){
+                else if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())) rc.canPickUpUnit(nearby_robots[i].getID());
+                        else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
             }
-        } else {
-            // No close robots, so search for robots within sight radius
-            tryMove(randomDirection());
         }*/
     }
 
@@ -692,7 +801,7 @@ public strictfp class RobotPlayer {
                     && !visited.contains(destination) &&! visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
-                    // rc.setIndicatorDot(current_location,255,0,0);
+                    rc.setIndicatorDot(current_location,0,255,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;
@@ -861,8 +970,6 @@ public strictfp class RobotPlayer {
         }
     }
 
-
-
     static void updateMissionStatus(Report report){
         switch(report.robot_type){
             case MINER:  
@@ -956,6 +1063,7 @@ public strictfp class RobotPlayer {
 
         switch(report.report_type){
             case SOUP:
+                soup_deposits_public.add(report.location);
                 break;
             case ROBOT:
                 updateRobot(report);
@@ -1314,6 +1422,9 @@ public strictfp class RobotPlayer {
                     remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
                 }
                 else if (report.report_type == ReportType.NO_ROBOT){
+                    remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
+                }
+                else if (report.report_type == ReportType.SOUP){
                     remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
                 }
                 ind_to_remove.add(i);

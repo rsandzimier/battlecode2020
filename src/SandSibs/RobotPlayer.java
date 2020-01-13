@@ -19,9 +19,10 @@ public strictfp class RobotPlayer {
     static MapLocation droneSpawnLocation;
     
     static int turnCount;
-    static boolean BuildDrone = true, moveLS = true, wallLocSet = true;
-    static boolean enemtUnitInDrone = false;
-    static int LSBuild = 0;
+    static int helpUnitID;
+    static boolean moveLS = true, wallLocSet = true, helpUnit = false;
+    static boolean enemyUnitInDrone = false, allyLandscaperUnitInDrone = false;
+    static int LSBuild = 0, BuildDrone = 0;
     
     static class Square {
         int turn;
@@ -418,9 +419,11 @@ public strictfp class RobotPlayer {
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        if(BuildDrone){
+        if(BuildDrone < 2){
             for(Direction dir : directions){
-                if(tryBuild(RobotType.DELIVERY_DRONE, dir)){BuildDrone = false;}
+                if(tryBuild(RobotType.DELIVERY_DRONE, dir)){
+                    BuildDrone++;
+                }
             }
         }
     }
@@ -493,33 +496,75 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+        if(HQ_loc != null && wallLocSet) {
+            setWallLocations();
+            wallLocSet = false;
+        }
         if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
         Team ourTeam = rc.getTeam();
         
-        if(rc.isCurrentlyHoldingUnit() && enemtUnitInDrone){
+        if(rc.isCurrentlyHoldingUnit() && enemyUnitInDrone){
             for(Direction dir : directions){
                 if(rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
                     rc.dropUnit(dir);
-                    enemtUnitInDrone = false;
+                    enemyUnitInDrone = false;
                 }
                 else;
             }
             tryMove(randomDirection());
         }
         
+        if(rc.isCurrentlyHoldingUnit() && allyLandscaperUnitInDrone){
+            for(int i = 0; i < 16; i++){
+                if(rc.getLocation().isAdjacentTo(wallLocation[i]) && rc.isReady()  && rc.canDropUnit(rc.getLocation().directionTo(wallLocation[i]))){
+                    rc.dropUnit(rc.getLocation().directionTo(wallLocation[i]));
+                    allyLandscaperUnitInDrone = false;
+                    helpUnit = false;
+                    helpUnitID = 0;
+                }
+            }
+            tryMove(randomDirection());
+        }
         
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         for(int i=0; i < nearby_robots.length; i++){
             if(nearby_robots[i].getTeam() != ourTeam){
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
                     rc.pickUpUnit(nearby_robots[i].getID());
-                    enemtUnitInDrone = true;
+                    enemyUnitInDrone = true;
                 }
                 else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
             }
         }
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() == RobotType.LANDSCAPER){
+                if(helpUnit){
+                    if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(helpUnitID)){
+                        rc.pickUpUnit(helpUnitID);
+                        allyLandscaperUnitInDrone = true;
+                    }
+                    else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+                }
+                
+                for(int j = 0; j < 16; j++){
+                    if(nearby_robots[i].getLocation() == wallLocation[j]) helpUnit = false;
+                    else;
+                }
+                helpUnit = true;
+                helpUnitID = nearby_robots[i].getID();
+            }
+        }
+        
+        if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
+        else moveToLocationUsingBugPathing(HQ_loc);
     }
 
+    
+    
     static void runNetGun() throws GameActionException {
 
     }
@@ -730,7 +775,7 @@ public strictfp class RobotPlayer {
                     && !visited.contains(destination) &&! visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
-                    rc.setIndicatorDot(current_location,0,255,0);
+                    //rc.setIndicatorDot(current_location,0,255,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;

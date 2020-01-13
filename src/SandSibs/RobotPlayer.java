@@ -16,6 +16,8 @@ public strictfp class RobotPlayer {
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
     
+    static MapLocation droneSpawnLocation;
+    
     static int turnCount;
     static boolean DSBuild = true, moveLS = true, wallLocSet = true;
     static int LSBuild = 0;
@@ -383,14 +385,13 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-            for(Direction dir : directions)
-                tryBuild(RobotType.LANDSCAPER, dir);
+        for(Direction dir : directions)
+            if(tryBuild(RobotType.LANDSCAPER, dir));
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        /*for (Direction dir : directions)
-            tryBuild(RobotType.DELIVERY_DRONE, dir);
-            */
+        for(Direction dir : directions)
+            if(tryBuild(RobotType.DELIVERY_DRONE, dir));
     }
 
     static void runLandscaper() throws GameActionException {
@@ -400,7 +401,8 @@ public strictfp class RobotPlayer {
         }
         
         if(moveLS){
-            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
+            if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc)) moveToLocationUsingBugPathing(HQ_loc.add(Direction.NORTH).add(Direction.NORTH).add(Direction.NORTH));
+            else if(HQ_loc != null && rc.getLocation().isAdjacentTo(HQ_loc.add(HQ_loc.directionTo(rc.getLocation())))) moveLS = false;
             else if(HQ_loc != null) moveToLocationUsingBugPathing(HQ_loc);
             else tryMove(randomDirection());
         }
@@ -417,10 +419,17 @@ public strictfp class RobotPlayer {
                 else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
                 else;
             }
-            else{
+            else {
+                System.out.println("TRYING TO GO :: " + buildLocation);
                 moveToLocationUsingBugPathing(buildLocation);
+                for(int i=0;i<16;i++){
+                    if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(rc.getLocation()) - rc.senseElevation(wallLocation[i])) > 3){
+                        if(rc.canDepositDirt(rc.getLocation().directionTo(wallLocation[i])) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(wallLocation[i]));
+                        else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
+                        else;
+                    }
+                }
             }
-                    
         }
         
         updateMapDiscovered();
@@ -443,7 +452,7 @@ public strictfp class RobotPlayer {
         MapLocation returnLoc = rc.getLocation();
         for(int i=0; i<16; i++){
             if(rc.canSenseLocation(wallLocation[i])){
-                if(rc.senseElevation(rc.getLocation()) > rc.senseElevation(wallLocation[i]) + 2*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
                     returnLoc = wallLocation[i];
                 }
             }
@@ -453,18 +462,14 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
-        /*Team enemy = rc.getTeam().opponent();
-        if (!rc.isCurrentlyHoldingUnit()) {
-            // See if there are any enemy robots within striking range (distance 1 from lumberjack's radius)
-            RobotInfo[] robots = rc.senseNearbyRobots(GameConstants.DELIVERY_DRONE_PICKUP_RADIUS_SQUARED, enemy);
-            if (robots.length > 0) {
-                // Pick up a first robot within range
-                rc.pickUpUnit(robots[0].getID());
-                System.out.println("I picked up " + robots[0].getID() + "!");
+        /*if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
+        Team ourTeam = rc.getTeam();
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() != ourTeam){
+                else if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())) rc.canPickUpUnit(nearby_robots[i].getID());
+                        else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
             }
-        } else {
-            // No close robots, so search for robots within sight radius
-            tryMove(randomDirection());
         }*/
     }
 
@@ -678,7 +683,7 @@ public strictfp class RobotPlayer {
                     && !visited.contains(destination) &&! visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
-                    // rc.setIndicatorDot(current_location,255,0,0);
+                    rc.setIndicatorDot(current_location,0,255,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;

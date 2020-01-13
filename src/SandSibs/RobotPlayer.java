@@ -729,7 +729,7 @@ public strictfp class RobotPlayer {
                     rc.pickUpUnit(nearby_robots[i].getID());
                     enemyUnitInDrone = true;
                 }
-                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true);
             }
         }
         for(int i=0; i < nearby_robots.length; i++){
@@ -739,7 +739,7 @@ public strictfp class RobotPlayer {
                         rc.pickUpUnit(helpUnitID);
                         allyLandscaperUnitInDrone = true;
                     }
-                    else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+                    else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true);
                 }
                 
                 for(int j = 0; j < 16; j++){
@@ -752,7 +752,7 @@ public strictfp class RobotPlayer {
         }
         
         if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
-        else moveToLocationUsingBugPathing(HQ_loc);
+        else moveToLocationUsingBugPathing(HQ_loc, true);
     }
 
     
@@ -917,13 +917,18 @@ public strictfp class RobotPlayer {
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location) throws GameActionException{
+        moveToLocationUsingBugPathing(location, false);
+    }
+
+
+    static void moveToLocationUsingBugPathing(MapLocation location, boolean ignoreElevation) throws GameActionException{
         if (!goal_location.equals(location))
         {
             goal_location = location;
             visited.clear();
         }
-        PathResult path_result_left = bugPathPlan(location,true);
-        PathResult path_result_right = bugPathPlan(location,false);
+        PathResult path_result_left = bugPathPlan(location,true, ignoreElevation);
+        PathResult path_result_right = bugPathPlan(location,false, ignoreElevation);
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
@@ -948,6 +953,9 @@ public strictfp class RobotPlayer {
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
+        return bugPathPlan(goal, turn_left, false);
+    }
+    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean ignoreElevation) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
         HashSet<MapLocation> visited_plan = new HashSet<MapLocation>();
@@ -963,8 +971,8 @@ public strictfp class RobotPlayer {
             for (int i = 0; i != directions.length; i++){
                 MapLocation destination = current_location.add(dir);
                 if (onTheMap(destination) && (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) &&
-                    !rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3 
-                    && !visited.contains(destination) &&! visited_plan.contains(destination)))){
+                    (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
+                    !visited.contains(destination) && !visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
                     //rc.setIndicatorDot(current_location,0,255,0);

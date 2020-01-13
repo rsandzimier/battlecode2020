@@ -419,17 +419,17 @@ public strictfp class RobotPlayer {
                 else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
                 else;
             }
-            else{
+            else {
+                System.out.println("TRYING TO GO :: " + buildLocation);
                 moveToLocationUsingBugPathing(buildLocation);
-                for(int i=0; i<16; i++){
-                    if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(wallLocation[i]) - rc.senseElevation(rc.getLocation())) > 3){
+                for(int i=0;i<16;i++){
+                    if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(rc.getLocation()) - rc.senseElevation(wallLocation[i])) > 3){
                         if(rc.canDepositDirt(rc.getLocation().directionTo(wallLocation[i])) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(wallLocation[i]));
                         else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
                         else;
                     }
                 }
             }
-                    
         }
         
         updateMapDiscovered();
@@ -683,7 +683,7 @@ public strictfp class RobotPlayer {
                     && !visited.contains(destination) &&! visited_plan.contains(destination)))){
                     current_location = destination;
                     visited_plan.add(current_location);
-                    // rc.setIndicatorDot(current_location,255,0,0);
+                    rc.setIndicatorDot(current_location,0,255,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;

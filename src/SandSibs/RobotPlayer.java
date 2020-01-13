@@ -16,6 +16,8 @@ public strictfp class RobotPlayer {
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
     
+    static MapLocation droneSpawnLocation;
+    
     static int turnCount;
     static boolean DSBuild = true, moveLS = true, wallLocSet = true;
     static int LSBuild = 0;
@@ -388,7 +390,8 @@ public strictfp class RobotPlayer {
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        
+        for(Direction dir : directions)
+            if(tryBuild(RobotType.DELIVERY_DRONE, dir));
     }
 
     static void runLandscaper() throws GameActionException {
@@ -417,14 +420,14 @@ public strictfp class RobotPlayer {
                 else;
             }
             else{
-                /*for(int i=0; i<16; i++){
-                    if(wallLocation[i].isAdjacentT(rc.getLocation()) && Math.abs(rc.senseElevation(wallLocation[i]) - rc.getElevation(rc.getLocation())) > 3){
-                        if(rc.canDepositDirt(wallLocation[i]) && rc.isReady()) rc.depositDirt(wallLocation[i]);
+                moveToLocationUsingBugPathing(buildLocation);
+                for(int i=0; i<16; i++){
+                    if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(wallLocation[i]) - rc.senseElevation(rc.getLocation())) > 3){
+                        if(rc.canDepositDirt(rc.getLocation().directionTo(wallLocation[i])) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(wallLocation[i]));
                         else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
                         else;
                     }
-                }*/
-                moveToLocationUsingBugPathing(buildLocation);
+                }
             }
                     
         }
@@ -459,7 +462,15 @@ public strictfp class RobotPlayer {
     }
 
     static void runDeliveryDrone() throws GameActionException {
-        
+        /*if(droneSpawnLocation == null) droneSpawnLocation = rc.getLocation();
+        Team ourTeam = rc.getTeam();
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() != ourTeam){
+                else if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())) rc.canPickUpUnit(nearby_robots[i].getID());
+                        else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+            }
+        }*/
     }
 
     static void runNetGun() throws GameActionException {

@@ -259,32 +259,57 @@ public strictfp class RobotPlayer {
                 }
             } 
             if (fulfillment_centers.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+                Mission new_mission = null;
                 for (RobotStatus rs : miners){
-                    if (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
-                        Mission new_mission = new Mission();
+                    if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD &&
+                         rs.missions.get(0).robot_type == RobotType.FULFILLMENT_CENTER){
+                        new_mission = null;
+                        break;
+                    }
+                    if (new_mission == null && rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                        System.out.println("Assign Miner " + rs.robot_id + " to build fulfillment center. " + fulfillment_centers.size());
+                        new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD;
                         new_mission.location = HQ_loc;
                         new_mission.robot_ids.add(rs.robot_id);
                         new_mission.robot_type = RobotType.FULFILLMENT_CENTER;
                         new_mission.distance = 1;
-                        mission_queue.add(new_mission);
-                        break;
                     }
                 }
+                if (new_mission != null)
+                    mission_queue.add(new_mission);
             }
+
             if (design_schools.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+                Mission new_mission = null;
                 for (RobotStatus rs : miners){
-                    if (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
-                        Mission new_mission = new Mission();
+                    if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD &&
+                         rs.missions.get(0).robot_type == RobotType.DESIGN_SCHOOL){
+                        new_mission = null;
+                        break;
+                    }
+                    if (new_mission == null && rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                        boolean miner_already_queued = false;
+                        for (Mission m : mission_queue){
+                            if (m.robot_ids.size() != 0 &&  m.robot_ids.get(0) == rs.robot_id){
+                                miner_already_queued = true;
+                                break;
+                            }
+                        }
+                        if (miner_already_queued){
+                            continue;
+                        }
+                        System.out.println("Assign Miner " + rs.robot_id + " to build design school. " + design_schools.size());
+                        new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD;
                         new_mission.location = HQ_loc;
                         new_mission.robot_ids.add(rs.robot_id);
                         new_mission.robot_type = RobotType.DESIGN_SCHOOL;
                         new_mission.distance = 1;
-                        mission_queue.add(new_mission);
-                        break;
                     }
-                }                
+                }
+                if (new_mission != null)
+                    mission_queue.add(new_mission);
             }
             // If no needsScouting and builder is free        
         }
@@ -297,27 +322,64 @@ public strictfp class RobotPlayer {
         // Otherwise, path toward
         MapLocation current_location = rc.getLocation();
         for (Direction dir : directions){
-            if (current_location.add(dir).isWithinDistanceSquared(mission.location, mission.distance*mission.distance) && 
-                tryBuild(mission.robot_type, dir)){
+            if (current_location.add(dir).isWithinDistanceSquared(mission.location, mission.distance*mission.distance)){
+                int build_cost = 0;
+                switch(mission.robot_type){
+                    case MINER:
+                        build_cost = 70;
+                        break;
+                    case LANDSCAPER:
+                        build_cost = 150;
+                        break;
+                    case DELIVERY_DRONE:
+                        build_cost = 150;
+                        break;
+                    case REFINERY:
+                        build_cost = 200;
+                        break;
+                    case VAPORATOR:
+                        build_cost = 1000;
+                        break;
+                    case DESIGN_SCHOOL:
+                        build_cost = 150;
+                        break;
+                    case FULFILLMENT_CENTER:
+                        build_cost = 150;
+                        break;
+                    case NET_GUN:
+                        build_cost = 250;
+                        break;
+                    default:
+                        break;                    
+                }
+                if (tryBuild(mission.robot_type, dir)){
+                    System.out.print("Miner " + rc.getID() + " built "+ mission.robot_type);
+                    Report report = new Report();
+                    report.report_type = ReportType.MISSION_STATUS;
+                    report.mission_type = mission.mission_type;
+                    report.successful = true;
+                    report.robot_type = rc.getType();
+                    report_queue.add(report);
 
-                Report report = new Report();
-                report.report_type = ReportType.MISSION_STATUS;
-                report.mission_type = mission.mission_type;
-                report.successful = true;
-                report.robot_type = rc.getType();
-                report_queue.add(report);
-
-                report = new Report();
-                report.report_type = ReportType.ROBOT;
-                report.robot_type = mission.robot_type;
-                report.robot_team = true;
-                report.location = current_location.add(dir);
-                report.robot_id = rc.senseRobotAtLocation(report.location).getID();
-                report_queue.add(report);
-                active_missions.remove(0);                
-                return;
+                    report = new Report();
+                    report.report_type = ReportType.ROBOT;
+                    report.robot_type = mission.robot_type;
+                    report.robot_team = true;
+                    report.location = current_location.add(dir);
+                    report.robot_id = rc.senseRobotAtLocation(report.location).getID();
+                    report_queue.add(report);
+                    active_missions.remove(0);                
+                    return;      
+                }
+                else if (rc.canMove(dir) && rc.getTeamSoup() < build_cost){
+                    visited.clear();
+                    return;
+                }
             }
+
         }
+        // If can build, but can't afford it, don't move
+
         moveToLocationUsingBugPathing(mission.location);
     }
 
@@ -363,7 +425,7 @@ public strictfp class RobotPlayer {
     static boolean tryBuildRefinery() throws GameActionException{
         for (Direction dir : directions){
             MapLocation loc = rc.getLocation().add(dir);
-            if (!loc.isWithinDistanceSquared(HQ_loc, 8) && tryBuild(RobotType.REFINERY, dir)){
+            if (HQ_loc != null && !loc.isWithinDistanceSquared(HQ_loc, 8) && tryBuild(RobotType.REFINERY, dir)){
                 RobotStatus rs = new RobotStatus(rc.senseRobotAtLocation(loc).getID());
                 rs.location = loc;
                 refineries.add(rs);
@@ -379,15 +441,36 @@ public strictfp class RobotPlayer {
         }
         return false;
     }
+    static MapLocation nextSoupLocation() throws GameActionException {
+        System.out.println("Get next soup location");
+        Iterator<MapLocation> it = soup_deposits.iterator();
+        MapLocation location = null;
+        while(it.hasNext()){
+            location = it.next();
+            if (HQ_loc != null && (!location.isWithinDistanceSquared(HQ_loc, 8)) || design_schools.size() == 0){
+                System.out.println("Found soup");
+                return location;
+            }
+        }
+        System.out.println("Did not find soup");
+        location = null;
+        return location;
+    }
 
     static boolean tryMineMission() throws GameActionException {
+        System.out.println("Mine Mission");
+        MapLocation soup_location = nextSoupLocation();
         if (tryRefine()){
+            System.out.println("Refined soup");
+
             ;
         }
         else if (distanceSquaredToNearestRefinery() > 10 && adjacentToSoup() && tryBuildRefinery()){
+            System.out.println("Build Refinery");
             ; 
         }
         else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
+            System.out.println("Move to refinery");
             RobotStatus nearest_refinery = nearestRefinery();
             if (nearest_refinery != null){
                 moveToLocationUsingBugPathing(nearest_refinery.location);
@@ -396,7 +479,8 @@ public strictfp class RobotPlayer {
                 moveToLocationUsingBugPathing(HQ_loc);
             }
         }
-        else if (tryMine()){
+        else if ((HQ_loc != null && (!rc.getLocation().isWithinDistanceSquared(HQ_loc, 8)) || design_schools.size() == 0) && tryMine()){
+            System.out.println("Mine");
             boolean should_report = true;
             for (MapLocation loc : soup_deposits_public){
                 if (rc.getLocation().isWithinDistanceSquared(loc, 25)){
@@ -412,11 +496,12 @@ public strictfp class RobotPlayer {
                 soup_deposits_public.add(rc.getLocation());
             }
         }
-        else if (soup_deposits.size() > 0){
-            MapLocation loc = soup_deposits.iterator().next();
-            moveToLocationUsingBugPathing(loc);
+        else if (soup_location != null){
+            System.out.println("Move to soup deposit at " + soup_location.x + ", " + soup_location.y);
+            moveToLocationUsingBugPathing(soup_location);
         }  
         else if (soup_deposits_public.size() > 0){
+            System.out.println("Move to public soup deposit");
             MapLocation closest_loc = null;
             MapLocation current_location = rc.getLocation();
             int distance = 10000;
@@ -435,6 +520,7 @@ public strictfp class RobotPlayer {
             moveToLocationUsingBugPathing(closest_loc);
         }        
         else{
+            System.out.println("Failed mission");
             return false;
         }
         return true;
@@ -523,10 +609,12 @@ public strictfp class RobotPlayer {
     }
 
     static void runFulfillmentCenter() throws GameActionException {
-        if(BuildDrone < 2){
-            for(Direction dir : directions){
-                if(tryBuild(RobotType.DELIVERY_DRONE, dir)){
-                    BuildDrone++;
+        if (rc.getTeamSoup() >= 350){
+            if(BuildDrone < 2){
+                for(Direction dir : directions){
+                    if(tryBuild(RobotType.DELIVERY_DRONE, dir)){
+                        BuildDrone++;
+                    }
                 }
             }
         }
@@ -1159,6 +1247,8 @@ public strictfp class RobotPlayer {
     }
 
     static boolean checkPasswordAndHash(int[] message){
+        if (message.length < GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH)
+            return false;
         if (blockchain_password_hashes.contains(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
             return false;
         int pass = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;

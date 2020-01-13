@@ -102,6 +102,8 @@ public strictfp class RobotPlayer {
 
     // static List<MapLocation> soup_deposits = new ArrayList<>();
     static HashSet<MapLocation> soup_deposits = new HashSet<MapLocation>();
+    static ArrayList<MapLocation> soup_deposits_public = new ArrayList<MapLocation>();
+
     static HashSet<MapLocation> visited = new HashSet<MapLocation>();
 
     static MapLocation HQ_loc;
@@ -297,12 +299,43 @@ public strictfp class RobotPlayer {
             moveToLocationUsingBugPathing(HQ_loc);
         }
         else if (tryMine()){
-            ;        
+            boolean should_report = true;
+            for (MapLocation loc : soup_deposits_public){
+                if (rc.getLocation().isWithinDistanceSquared(loc, 25)){
+                    should_report = false;
+                    break;
+                }
+            }     
+            if (should_report){
+                Report report = new Report();
+                report.report_type = ReportType.SOUP;
+                report.location = rc.getLocation();
+                report_queue.add(report);
+                soup_deposits_public.add(rc.getLocation());
+            }
         }
         else if (soup_deposits.size() > 0){
             MapLocation loc = soup_deposits.iterator().next();
             moveToLocationUsingBugPathing(loc);
-        }          
+        }  
+        else if (soup_deposits_public.size() > 0){
+            MapLocation closest_loc = null;
+            MapLocation current_location = rc.getLocation();
+            int distance = 10000;
+            for (int i = soup_deposits_public.size()-1; i >= 0; i--){
+                int dist_i = current_location.distanceSquaredTo(soup_deposits_public.get(i));
+                if (dist_i == 0){
+                    soup_deposits_public.remove(i);
+                }
+                else if (dist_i < distance){
+                    closest_loc = soup_deposits_public.get(i);
+                    distance = dist_i;
+                }
+            }
+            if (closest_loc == null)
+                return false;
+            moveToLocationUsingBugPathing(closest_loc);
+        }        
         else{
             return false;
         }
@@ -852,8 +885,6 @@ public strictfp class RobotPlayer {
         }
     }
 
-
-
     static void updateMissionStatus(Report report){
         switch(report.robot_type){
             case MINER:  
@@ -913,6 +944,7 @@ public strictfp class RobotPlayer {
 
         switch(report.report_type){
             case SOUP:
+                soup_deposits_public.add(report.location);
                 break;
             case ROBOT:
                 updateRobot(report);
@@ -1271,6 +1303,9 @@ public strictfp class RobotPlayer {
                     remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
                 }
                 else if (report.report_type == ReportType.NO_ROBOT){
+                    remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
+                }
+                else if (report.report_type == ReportType.SOUP){
                     remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
                 }
                 ind_to_remove.add(i);

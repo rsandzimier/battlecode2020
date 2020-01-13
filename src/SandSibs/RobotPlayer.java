@@ -646,13 +646,13 @@ public strictfp class RobotPlayer {
 
         if (left_steps <= right_steps){
             tryMove(path_result_left.direction);
-            if (path_result_left.direction == Direction.CENTER){
+            if (path_result_left.steps >= 100){
                 visited.clear();
             }
         }
         else{
             tryMove(path_result_right.direction);
-            if (path_result_right.direction == Direction.CENTER){
+            if (path_result_right.steps >= 100){
                 visited.clear();
             }
         }
@@ -696,7 +696,7 @@ public strictfp class RobotPlayer {
                     dir = dir.rotateRight();
 
                 if (i == directions.length - 1){
-                    return new PathResult(Direction.CENTER,0,rc.getLocation());
+                    return new PathResult(first_dir,100,rc.getLocation());
                 }
             }
             dir = current_location.directionTo(goal);

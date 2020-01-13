@@ -125,6 +125,8 @@ public strictfp class RobotPlayer {
     static ArrayList<RobotStatus> fulfillment_centers = new ArrayList<RobotStatus>();
     static ArrayList<RobotStatus> net_guns = new ArrayList<RobotStatus>();
 
+    static ArrayList<RobotStatus> enemy_drones = new ArrayList<RobotStatus>();
+
     static MapLocation goal_location = new MapLocation(0,0);
 
     static Phase phase = Phase.EARLY;
@@ -218,6 +220,13 @@ public strictfp class RobotPlayer {
     static void runHQ() throws GameActionException {
         readBlockChain();
         updateMapRobots();
+
+        for (RobotStatus ed :enemy_drones){
+            if (rc.canShootUnit(ed.robot_id)){
+                rc.shootUnit(ed.robot_id);
+            }
+        }
+
         if (phase == Phase.EARLY){
             if (miners.size() < 6){
                 for (Direction dir : directions)
@@ -603,18 +612,44 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-        if (rc.getTeamSoup() >= 350)
+        updateMapRobots();
+        if (rc.getTeamSoup() >= 350 && HQ_loc != null){
+            RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+
+            int count = 0;
+            for (RobotInfo nr : nearby_robots){
+                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.LANDSCAPER && nr.getLocation().isWithinDistanceSquared(HQ_loc, 2)){
+                    count++;
+                }
+            }
+            if (count >= 2){
+                return;
+            }
             for(Direction dir : directions)
                 if(tryBuild(RobotType.LANDSCAPER, dir));
+        }
     }
 
     static void runFulfillmentCenter() throws GameActionException {
+        updateMapRobots();
+
         if (rc.getTeamSoup() >= 350){
-            if(BuildDrone < 2){
-                for(Direction dir : directions){
-                    if(tryBuild(RobotType.DELIVERY_DRONE, dir)){
-                        BuildDrone++;
-                    }
+            RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+
+            System.out.println(HQ_loc);
+            int count = 0;
+            for (RobotInfo nr : nearby_robots){
+                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.DELIVERY_DRONE && nr.getLocation().isWithinDistanceSquared(HQ_loc, 2)){
+                    count++;
+                }
+            }
+            System.out.println("Drone count: "+count);
+            if (count >= 2){
+                return;
+            }
+            for(Direction dir : directions){
+                if(tryBuild(RobotType.DELIVERY_DRONE, dir)){
+                    BuildDrone++;
                 }
             }
         }
@@ -646,7 +681,6 @@ public strictfp class RobotPlayer {
                 else;
             }
             else {
-                System.out.println("TRYING TO GO :: " + buildLocation);
                 moveToLocationUsingBugPathing(buildLocation);
                 for(int i=0;i<16;i++){
                     if(wallLocation[i].isAdjacentTo(rc.getLocation()) && Math.abs(rc.senseElevation(rc.getLocation()) - rc.senseElevation(wallLocation[i])) > 3){
@@ -676,10 +710,16 @@ public strictfp class RobotPlayer {
     
     static MapLocation checkElevationsOfWall() throws GameActionException {
         MapLocation returnLoc = rc.getLocation();
+        MapLocation current_location = rc.getLocation();
+        int value = 10000;
         for(int i=0; i<16; i++){
             if(rc.canSenseLocation(wallLocation[i])){
-                if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                // if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
+                int num_steps = Math.max(0, Math.abs(current_location.x - wallLocation[i].x)-1)+Math.max(0, Math.abs(current_location.y - wallLocation[i].y)-1)+1;
+                int value_i = rc.senseElevation(wallLocation[i]) + 3*num_steps;
+                if(value_i < value){
                     returnLoc = wallLocation[i];
+                    value = value_i;
                 }
             }
         }
@@ -707,19 +747,38 @@ public strictfp class RobotPlayer {
                 }
                 else;
             }
+            // Head more intelligently to water
             tryMove(randomDirection());
         }
         
         if(rc.isCurrentlyHoldingUnit() && allyLandscaperUnitInDrone){
+            System.out.println("Holding ally LS");
+            MapLocation closest_empty_wall = null;
+            int dist_to_empty = 10000;
             for(int i = 0; i < 16; i++){
                 if(rc.getLocation().isAdjacentTo(wallLocation[i]) && rc.isReady()  && rc.canDropUnit(rc.getLocation().directionTo(wallLocation[i]))){
+                    System.out.println("IF wall "+wallLocation[i].x + ", " + wallLocation[i].y);
                     rc.dropUnit(rc.getLocation().directionTo(wallLocation[i]));
                     allyLandscaperUnitInDrone = false;
                     helpUnit = false;
                     helpUnitID = 0;
+                    break;
+                }
+                else{
+                    System.out.println("ELSE wall "+wallLocation[i].x + ", " + wallLocation[i].y);
+                }
+                int dist_i = rc.getLocation().distanceSquaredTo(wallLocation[i]);
+                if (dist_i < dist_to_empty){
+                    closest_empty_wall = wallLocation[i];
+                    dist_to_empty = dist_i;
                 }
             }
-            tryMove(randomDirection());
+
+
+            // Head more intelligently to empty spot
+            if (closest_empty_wall != null){
+                moveToLocationUsingBugPathing(closest_empty_wall, true);
+            }
         }
         
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
@@ -732,23 +791,49 @@ public strictfp class RobotPlayer {
                 else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true);
             }
         }
-        for(int i=0; i < nearby_robots.length; i++){
-            if(nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() == RobotType.LANDSCAPER){
-                if(helpUnit){
-                    if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(helpUnitID)){
-                        rc.pickUpUnit(helpUnitID);
-                        allyLandscaperUnitInDrone = true;
-                    }
-                    else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true);
-                }
-                
-                for(int j = 0; j < 16; j++){
-                    if(nearby_robots[i].getLocation() == wallLocation[j]) helpUnit = false;
-                    else;
-                }
-                helpUnit = true;
-                helpUnitID = nearby_robots[i].getID();
+        boolean wall_full = true;
+        for(int j = 0; j < 16; j++){
+            if (rc.canSenseLocation(wallLocation[j]) && rc.senseRobotAtLocation(wallLocation[j]) == null){
+                wall_full = false;
+                break;
             }
+        }
+        RobotInfo landscaper_to_help = null;
+        if (!wall_full){
+            int dist_to_landscaper = 10000;
+            for(int i=0; i < nearby_robots.length; i++){
+                if(nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() == RobotType.LANDSCAPER){
+                    System.out.println("Robot ID: " + nearby_robots[i].getID());
+                    boolean on_wall = false;
+                    for(int j = 0; j < 16; j++){
+                        System.out.println("Robot location: " + nearby_robots[i].getLocation().x + ", " + nearby_robots[i].getLocation().y);
+                        System.out.println("Wall location: " + wallLocation[j].x + ", " + wallLocation[j].y);
+                        if(nearby_robots[i].getLocation().equals(wallLocation[j])){
+                            on_wall = true;
+                            System.out.println("Robot on wall");
+                            break;
+                        }
+
+                    }
+                    if (!on_wall){
+                        System.out.println("Robot not on wall");
+                        int dist_i = rc.getLocation().distanceSquaredTo(nearby_robots[i].getLocation());
+                        if (dist_i < dist_to_landscaper){
+                            landscaper_to_help = nearby_robots[i];
+                            dist_to_landscaper = dist_i;
+                        }                    
+                    }
+                }
+            }    
+        }
+
+        if (landscaper_to_help != null){
+            System.out.println("Landscaper to help: " + landscaper_to_help.getID());
+            if(rc.isReady() && rc.canPickUpUnit(landscaper_to_help.getID())){
+                rc.pickUpUnit(landscaper_to_help.getID());
+                allyLandscaperUnitInDrone = true;
+            }
+            else moveToLocationUsingBugPathing(landscaper_to_help.getLocation(), true);
         }
         
         if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
@@ -872,6 +957,7 @@ public strictfp class RobotPlayer {
     static void updateMapRobots() throws GameActionException{
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         RobotType robot_type = rc.getType();
+        enemy_drones.clear();
         for (RobotInfo nr : nearby_robots){
             if (robot_type == RobotType.HQ && rc.getTeam() == nr.getTeam() ){
                 int id = nr.getID();
@@ -912,6 +998,19 @@ public strictfp class RobotPlayer {
                 symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
                 symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
                 symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
+            }
+            if (rc.getType() == RobotType.LANDSCAPER && nr.getType() == RobotType.FULFILLMENT_CENTER && nr.getTeam() == rc.getTeam()){
+                addRobotToList(fulfillment_centers, nr.getID());
+                if (!robotListContainsID(fulfillment_centers, nr.getID())){
+                    RobotStatus rs = new RobotStatus(nr.getID());
+                    rs.location = nr.getLocation();
+                    fulfillment_centers.add(rs);
+                }
+            }
+            if (robot_type == RobotType.DELIVERY_DRONE && rc.getTeam() != nr.getTeam() && rc.getLocation().isWithinDistanceSquared(nr.getLocation(), GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)){
+                RobotStatus rs = new RobotStatus(nr.getID());
+                rs.location = nr.getLocation();
+                enemy_drones.add(rs);
             }
         }
     }

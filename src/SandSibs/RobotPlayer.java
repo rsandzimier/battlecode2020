@@ -584,7 +584,7 @@ public strictfp class RobotPlayer {
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         RobotType robot_type = rc.getType();
         for (RobotInfo nr : nearby_robots){
-            if (robot_type == RobotType.HQ){
+            if (robot_type == RobotType.HQ && rc.getTeam() == nr.getTeam() ){
                 int id = nr.getID();
                 switch(nr.getType()){
                     case MINER:

@@ -86,6 +86,7 @@ public strictfp class RobotPlayer {
     static class RobotStatus{
         int robot_id;
         ArrayList<Mission> missions;
+        MapLocation location;
 
         public RobotStatus(int id){
             robot_id = id;
@@ -294,6 +295,7 @@ public strictfp class RobotPlayer {
                 report = new Report();
                 report.report_type = ReportType.ROBOT;
                 report.robot_type = mission.robot_type;
+                report.robot_team = true;
                 report.location = current_location.add(dir);
                 report.robot_id = rc.senseRobotAtLocation(report.location).getID();
                 report_queue.add(report);
@@ -304,12 +306,80 @@ public strictfp class RobotPlayer {
         moveToLocationUsingBugPathing(mission.location);
     }
 
+    static boolean adjacentToSoup() throws GameActionException{
+        for (Direction dir : directions){
+            if (rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseSoup(rc.getLocation().add(dir)) > 0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static int distanceSquaredToNearestRefinery() throws GameActionException{
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for (RobotInfo nr : nearby_robots){
+            if (rc.getTeam() == nr.getTeam() ){
+                int id = nr.getID();
+                if (nr.getType() == RobotType.REFINERY){
+                    RobotStatus rs = new RobotStatus(id);
+                    rs.location = nr.getLocation();
+                    refineries.add(rs);                
+                }
+            }
+        }
+        RobotStatus refinery = nearestRefinery();
+        if (refinery == null) return 100;
+        return rc.getLocation().distanceSquaredTo(refinery.location);
+    }
+
+    static RobotStatus nearestRefinery() throws GameActionException{
+        int dist = 100;
+        RobotStatus refinery = null;
+        for (RobotStatus rs : refineries){
+            int dist_rs = rc.getLocation().distanceSquaredTo(rs.location);
+            if (dist_rs < dist){
+                dist = dist_rs;
+                refinery = rs;
+            }
+        }
+        return refinery;
+    }
+
+    static boolean tryBuildRefinery() throws GameActionException{
+        for (Direction dir : directions){
+            MapLocation loc = rc.getLocation().add(dir);
+            if (!loc.isWithinDistanceSquared(HQ_loc, 8) && tryBuild(RobotType.REFINERY, dir)){
+                RobotStatus rs = new RobotStatus(rc.senseRobotAtLocation(loc).getID());
+                rs.location = loc;
+                refineries.add(rs);
+
+                Report report = new Report();
+                report.report_type = ReportType.ROBOT;
+                report.robot_type = RobotType.REFINERY;
+                report.location = rs.location;
+                report.robot_id = rs.robot_id;
+                report_queue.add(report);  
+                return true;
+            }
+        }
+        return false;
+    }
+
     static boolean tryMineMission() throws GameActionException {
         if (tryRefine()){
             ;
         }
-        else if (rc.getSoupCarrying() == 100 && HQ_loc != null){
-            moveToLocationUsingBugPathing(HQ_loc);
+        else if (distanceSquaredToNearestRefinery() > 10 && adjacentToSoup() && tryBuildRefinery()){
+            ; 
+        }
+        else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
+            RobotStatus nearest_refinery = nearestRefinery();
+            if (nearest_refinery != null){
+                moveToLocationUsingBugPathing(nearest_refinery.location);
+            }
+            else{
+                moveToLocationUsingBugPathing(HQ_loc);
+            }
         }
         else if (tryMine()){
             boolean should_report = true;
@@ -432,8 +502,9 @@ public strictfp class RobotPlayer {
     }
 
     static void runDesignSchool() throws GameActionException {
-        for(Direction dir : directions)
-            if(tryBuild(RobotType.LANDSCAPER, dir));
+        if (rc.getTeamSoup() >= 350)
+            for(Direction dir : directions)
+                if(tryBuild(RobotType.LANDSCAPER, dir));
     }
 
     static void runFulfillmentCenter() throws GameActionException {

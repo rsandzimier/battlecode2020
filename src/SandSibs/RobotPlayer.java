@@ -1159,6 +1159,8 @@ public strictfp class RobotPlayer {
     }
 
     static boolean checkPasswordAndHash(int[] message){
+        if (message.length < GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH)
+            return false;
         if (blockchain_password_hashes.contains(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
             return false;
         int pass = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;

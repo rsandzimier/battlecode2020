@@ -292,11 +292,24 @@ public strictfp class RobotPlayer {
         // If can build, build
         // Otherwise, path toward
         MapLocation current_location = rc.getLocation();
-        boolean built = false;
         for (Direction dir : directions){
             if (current_location.add(dir).isWithinDistanceSquared(mission.location, mission.distance*mission.distance) && 
                 tryBuild(mission.robot_type, dir)){
-                built = true;  
+
+                Report report = new Report();
+                report.report_type = ReportType.MISSION_STATUS;
+                report.mission_type = mission.mission_type;
+                report.successful = true;
+                report.robot_type = rc.getType();
+                report_queue.add(report);
+
+                report = new Report();
+                report.report_type = ReportType.ROBOT;
+                report.robot_type = mission.robot_type;
+                report.location = current_location.add(dir);
+                report.robot_id = rc.senseRobotAtLocation(report.location).getID();
+                report_queue.add(report);
+                active_missions.remove(0);                
                 return;
             }
         }
@@ -343,6 +356,7 @@ public strictfp class RobotPlayer {
             if (robot != null){
                 report.report_type = ReportType.ROBOT;
                 report.robot_type = robot.getType();
+                report.robot_team = robot.getTeam() == rc.getTeam();
                 report.robot_id = robot.getID();
             }
             else{
@@ -912,32 +926,66 @@ public strictfp class RobotPlayer {
                 break;
             case NET_GUN:
                 updateMissionStatus(report, net_guns);
-                break;        
+                break;     
+            default:
+                break;   
         }
     }
 
     static void updateRobot(Report report){
-        if (possible_symmetries.size() > 1 && symmetric_HQ_locs[0] != null){
-            for (int i = 0; i != symmetric_HQ_locs.length; i++){
-                if (possible_symmetries.contains(Symmetry.values()[i]) && report.location.equals(symmetric_HQ_locs[i])){
-                    if (report.report_type == ReportType.ROBOT && report.robot_type == RobotType.HQ){
-                        possible_symmetries.clear();
-                        possible_symmetries.add(Symmetry.values()[i]);
-                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
-                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+        if (report.robot_type == RobotType.HQ || report.report_type == ReportType.NO_ROBOT){
+            if (possible_symmetries.size() > 1 && symmetric_HQ_locs[0] != null){
+                for (int i = 0; i != symmetric_HQ_locs.length; i++){
+                    if (possible_symmetries.contains(Symmetry.values()[i]) && report.location.equals(symmetric_HQ_locs[i])){
+                        if (report.report_type == ReportType.ROBOT && report.robot_type == RobotType.HQ){
+                            possible_symmetries.clear();
+                            possible_symmetries.add(Symmetry.values()[i]);
+                            if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                                enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                            }
+                            return;
                         }
-                        return;
+                        else{
+                            possible_symmetries.remove(Symmetry.values()[i]);
+                            if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                                enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                            }
+                            return;
+                        } 
                     }
-                    else{
-                        possible_symmetries.remove(Symmetry.values()[i]);
-                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
-                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
-                        }
-                        return;
-                    } 
                 }
+            }     
+        }
+
+        if (report.robot_team){
+            switch(report.robot_type){
+                case MINER:  
+                    addRobotToList(miners, report.robot_id);
+                    break;
+                case REFINERY: 
+                    addRobotToList(refineries, report.robot_id);
+                    break;
+                case VAPORATOR:
+                    addRobotToList(vaporators, report.robot_id);
+                    break;
+                case DESIGN_SCHOOL:
+                    addRobotToList(design_schools, report.robot_id);
+                    break;
+                case FULFILLMENT_CENTER:
+                    addRobotToList(fulfillment_centers, report.robot_id);
+                    break;
+                case LANDSCAPER:  
+                    addRobotToList(landscapers, report.robot_id);
+                    break;
+                case DELIVERY_DRONE: 
+                    addRobotToList(drones, report.robot_id);
+                    break;
+                case NET_GUN:
+                    addRobotToList(net_guns, report.robot_id);
+                    break;   
             }
-        }      
+        }
+      
     }
 
     static void updateFromReport (Report report) throws GameActionException{

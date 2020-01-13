@@ -219,7 +219,7 @@ public strictfp class RobotPlayer {
         readBlockChain();
         updateMapRobots();
         if (phase == Phase.EARLY){
-            if (miners.size() < 4){
+            if (miners.size() < 6){
                 for (Direction dir : directions)
                     if (tryBuild(RobotType.MINER, dir)){
                         RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));

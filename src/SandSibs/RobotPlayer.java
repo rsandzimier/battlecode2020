@@ -9,7 +9,6 @@ import java.util.LinkedHashSet;
 
 import java.util.Iterator; 
 
-
 public strictfp class RobotPlayer {
     static RobotController rc;
 
@@ -28,18 +27,68 @@ public strictfp class RobotPlayer {
         // unit/building
     }
 
-    static class pathResult{
+    static class PathResult{
         Direction direction;
         int steps;
         MapLocation end_location;
 
-        public pathResult(Direction dir, int s, MapLocation end) {
+        public PathResult(Direction dir, int s, MapLocation end) {
             direction = dir;
             steps = s;
             end_location = end;
         }
     }
 
+    enum Phase
+    {
+        EARLY;
+    }
+    enum MissionType
+    {
+        SCOUT, SCOUT_MINE, MINE, BUILD; 
+    }
+    enum ReportType
+    {
+        SOUP, ROBOT, NO_ROBOT, MISSION_STATUS; 
+    }
+    enum Symmetry
+    {
+        HORIZONTAL, VERTICAL, ROTATIONAL; 
+    }   
+    enum Label
+    {
+        MISSION_TYPE, ROBOT_ID, LOCATION, REPORT_TYPE, ROBOT_TYPE, ROBOT_TEAM, MISSION_SUCCESSFUL, SOUP_AMOUNT, END_MESSAGE;
+    }
+
+    static class Mission{
+        ArrayList<Integer> robot_ids = new ArrayList<Integer>();
+        MissionType mission_type;
+        MapLocation location;
+    }    
+
+    static class Report{
+        ReportType report_type;
+        MapLocation location;
+        RobotType robot_type;
+        boolean robot_team; // True if ours, false if opponent
+        int robot_id;
+        int soup_amount;
+        MissionType mission_type;
+        boolean successful; 
+    }
+
+    static class RobotStatus{
+        int robot_id;
+        ArrayList<Mission> missions;
+
+        public RobotStatus(int id){
+            robot_id = id;
+            missions = new ArrayList<Mission>();
+        }
+    }
+
+    static ArrayList<Symmetry> possible_symmetries = new ArrayList<Symmetry>();
+    static MapLocation[] symmetric_HQ_locs = new MapLocation[3];
 
     static Square[][] map = new Square[GameConstants.MAP_MAX_WIDTH][GameConstants.MAP_MAX_HEIGHT];
 
@@ -47,14 +96,37 @@ public strictfp class RobotPlayer {
     static HashSet<MapLocation> soup_deposits = new HashSet<MapLocation>(); 
     static HashSet<MapLocation> visited = new HashSet<MapLocation>(); 
 
-    
     static MapLocation HQ_loc;
+
+    static MapLocation enemy_HQ_loc;
 
     static Direction last_move_direction = Direction.CENTER;
 
-    static int num_miners;
+    static ArrayList<RobotStatus> miners = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> landscapers = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> drones = new ArrayList<RobotStatus>();
+
+    static ArrayList<RobotStatus> refineries = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> vaporators = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> design_schools = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> fulfillment_centers = new ArrayList<RobotStatus>();
+    static ArrayList<RobotStatus> net_guns = new ArrayList<RobotStatus>();
 
     static MapLocation goal_location = new MapLocation(0,0);
+
+    static Phase phase = Phase.EARLY;
+
+    static ArrayList<Mission> mission_queue = new ArrayList<Mission>();
+    static ArrayList<Report> report_queue = new ArrayList<Report>();
+
+    static ArrayList<Mission> active_missions = new ArrayList<Mission>();
+
+    static int map_width;
+    static int map_height;
+
+    static int blockchain_read_index;
+    static int blockchain_password;
+    static HashSet<Integer> blockchain_password_hashes = new HashSet<Integer>(); 
 
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
@@ -69,15 +141,30 @@ public strictfp class RobotPlayer {
 
         turnCount = 0;
 
-        num_miners = 0;
+        map_width = rc.getMapWidth();
+        map_height = rc.getMapHeight();
 
+        blockchain_read_index = Math.max(rc.getRoundNum()-1,2);
+        blockchain_password = 599 + rc.getTeam().ordinal();
 
+        possible_symmetries.add(Symmetry.HORIZONTAL);
+        possible_symmetries.add(Symmetry.VERTICAL);
+        possible_symmetries.add(Symmetry.ROTATIONAL);
+
+        if (rc.getType() == RobotType.HQ){
+            HQ_loc = rc.getLocation();
+            int mirror_x = map_width - HQ_loc.x - 1;
+            int mirror_y = map_height - HQ_loc.y - 1;
+            symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
+            symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
+            symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
+        }
 
         System.out.println("I'm a " + rc.getType() + " and I just got created!");
 
-        for (int i = 0; i != rc.getMapWidth(); i++)
+        for (int i = 0; i != map_width; i++)
         {
-            for (int j = 0; j != rc.getMapHeight(); j++)
+            for (int j = 0; j != map_height; j++)
             {
                 map[i][j] = new Square();
             }
@@ -89,6 +176,9 @@ public strictfp class RobotPlayer {
             try {
                 // Here, we've separated the controls into a different method for each RobotType.
                 // You can add the missing ones or rewrite this into your own control structure.
+                if (enemy_HQ_loc != null)
+                    rc.setIndicatorDot(enemy_HQ_loc, 0,0,0);
+
                 System.out.println("I'm a " + rc.getType() + "! Location " + rc.getLocation());
                 switch (rc.getType()) {
                     case HQ:                 runHQ();                break;
@@ -113,34 +203,137 @@ public strictfp class RobotPlayer {
     }
 
     static void runHQ() throws GameActionException {
-        for (Direction dir : directions)
-            if (num_miners < 5 && tryBuild(RobotType.MINER, dir)){
-                num_miners++;
+        readBlockChain();
+        updateMapRobots();
+        if (phase == Phase.EARLY){
+            if (miners.size() < 3){
+                for (Direction dir : directions)
+                    if (tryBuild(RobotType.MINER, dir)){
+                        RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
+                        addRobotToList(miners, new_miner.getID());
+                    }
             }
+
+            boolean needsScouting[] = {false, false, false};
+            if (possible_symmetries.size() > 1){
+                for (Symmetry sym : possible_symmetries){
+                    needsScouting[sym.ordinal()] = true;
+                }
+            } 
+
+            for (RobotStatus rs : miners){
+                if (rs.missions.size() > 0 && rs.missions.get(0).mission_type == MissionType.SCOUT_MINE){
+                    MapLocation loc = rs.missions.get(0).location;
+                    for (int i = 0; i != 3; i ++){
+                        if (needsScouting[i] && loc.equals(symmetric_HQ_locs[i])){
+                            needsScouting[i] = false;
+                        }
+                    }
+                }
+            }
+
+            for(int i = 0; i !=  miners.size(); i++){
+                for (int j = 0; j != 3; j++){
+                    if (needsScouting[j] && (miners.get(i).missions.size() == 0  || miners.get(i).missions.get(0).mission_type == MissionType.MINE)){
+                        // Assign this miner the mission
+                        Mission new_mission = new Mission();
+                        new_mission.mission_type = MissionType.SCOUT_MINE;
+                        new_mission.location = symmetric_HQ_locs[j];
+                        new_mission.robot_ids.add(miners.get(i).robot_id);
+                        mission_queue.add(new_mission);
+                        break;
+                    }
+                }
+            }         
+        }
+        tryBlockchain();
+        mission_queue.clear();
     }
 
-    static void runMiner() throws GameActionException {
+    static boolean tryMineMission() throws GameActionException {
         if (tryRefine()){
-            ;        
-        }        
-        else if (rc.getSoupCarrying() == 100 && HQ_loc != null){ // Need GAME CONSTANT
+            ;
+        }
+        else if (rc.getSoupCarrying() == 100 && HQ_loc != null){
             moveToLocationUsingBugPathing(HQ_loc);
         }
         else if (tryMine()){
-        ;        
+            ;        
         }
         else if (soup_deposits.size() > 0){
             MapLocation loc = soup_deposits.iterator().next();
-
             moveToLocationUsingBugPathing(loc);
+        }          
+        else{
+            return false;
+        }
+        return true;
+    }
+
+    static void tryScoutMission(Mission mission) throws GameActionException {
+        MapLocation location = mission.location;
+        if (rc.isReady()){
+            moveToLocationUsingBugPathing(location);
+        }
+        if (rc.canSenseLocation(location))
+        {
+            updateSquare(location.x, location.y);
+            RobotInfo robot = rc.senseRobotAtLocation(location);
+            Report report = new Report();
+            report.report_type = ReportType.MISSION_STATUS;
+            report.mission_type = mission.mission_type;
+            report.successful = true;
+            report.robot_type = rc.getType();
+            report_queue.add(report);
+
+            report = new Report();
+            if (robot != null){
+                report.report_type = ReportType.ROBOT;
+                report.robot_type = robot.getType();
+                report.robot_id = robot.getID();
+            }
+            else{
+                report.report_type = ReportType.NO_ROBOT;
+            }
+            report.location = location;
+            report_queue.add(report);
+            active_missions.remove(0);
+        }
+
+        // If can sense 
+    }
+
+    static void runMiner() throws GameActionException {
+        readBlockChain();
+
+        Mission current_mission = new Mission();
+        if (active_missions.size() > 0){
+            current_mission = active_missions.get(0);
         }
         else{
-            tryMove(randomDirection());
-        }   
+            current_mission.mission_type = MissionType.MINE;
+        }
+
+        switch(current_mission.mission_type){
+            case SCOUT:
+                tryScoutMission(current_mission);
+                break;
+            case SCOUT_MINE:
+                tryMineMission();
+                tryScoutMission(current_mission);
+                break;
+            case MINE:
+            default:
+                if (tryMineMission()) break;
+                tryMove(randomDirection());
+                break;
+        }
+
         updateMapDiscovered();
         updateMapGoalLocation();
         // updateMapSoupDeposits();
         updateMapRobots(); 
+        tryBlockchain();
     }
 
     static void runRefinery() throws GameActionException {
@@ -279,12 +472,64 @@ public strictfp class RobotPlayer {
         updateSquare(goal_location.x, goal_location.y);
     }
 
+    static void addRobotToList(ArrayList<RobotStatus> robots, int id){
+        if (!robotListContainsID(robots, id)){
+            robots.add(new RobotStatus(id));
+        }
+    }
+
+    static boolean robotListContainsID(ArrayList<RobotStatus> robots, int id){
+        for (RobotStatus r : robots){
+            if (r.robot_id == id){
+                return true;
+            }
+        }
+        return false;
+    }
 
     static void updateMapRobots() throws GameActionException{
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        RobotType robot_type = rc.getType();
         for (RobotInfo nr : nearby_robots){
-            if (HQ_loc == null && nr.getType() == RobotType.HQ){
+            if (robot_type == RobotType.HQ){
+                int id = nr.getID();
+                switch(nr.getType()){
+                    case MINER:
+                        addRobotToList(miners, id);
+                        break;
+                    case LANDSCAPER:
+                        addRobotToList(landscapers, id);
+                        break;
+                    case DELIVERY_DRONE:
+                        addRobotToList(drones, id);
+                        break;
+                    case REFINERY:
+                        addRobotToList(refineries, id);
+                        break;
+                    case VAPORATOR:
+                        addRobotToList(vaporators, id);
+                        break;
+                    case DESIGN_SCHOOL:
+                        addRobotToList(design_schools, id);
+                        break;
+                    case FULFILLMENT_CENTER:
+                        addRobotToList(fulfillment_centers, id);
+                        break;
+                    case NET_GUN:
+                        addRobotToList(net_guns, id);
+                        break;
+                    default:
+                        break;
+                }
+
+            }
+            else if (HQ_loc == null && nr.getType() == RobotType.HQ){
                 HQ_loc = nr.getLocation();
+                int mirror_x = map_width - HQ_loc.x - 1;
+                int mirror_y = map_height - HQ_loc.y - 1;
+                symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
+                symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
+                symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
             }
         }
     }   
@@ -295,8 +540,8 @@ public strictfp class RobotPlayer {
             goal_location = location;
             visited.clear();
         }
-        pathResult path_result_left = bugPathPlan(location,true);
-        pathResult path_result_right = bugPathPlan(location,false);
+        PathResult path_result_left = bugPathPlan(location,true);
+        PathResult path_result_right = bugPathPlan(location,false);
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
@@ -310,7 +555,7 @@ public strictfp class RobotPlayer {
         visited.add(rc.getLocation());
     }
 
-    static pathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
+    static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
         HashSet<MapLocation> visited_plan = new HashSet<MapLocation>();
@@ -345,17 +590,17 @@ public strictfp class RobotPlayer {
                     dir = dir.rotateRight();
 
                 if (i == directions.length - 1){
-                    return new pathResult(Direction.CENTER,0,rc.getLocation());
+                    return new PathResult(Direction.CENTER,0,rc.getLocation());
                 }
             }
             dir = current_location.directionTo(goal);
 
             if (current_location.isAdjacentTo(goal)){
-                return new pathResult(first_dir,num_steps,current_location);
+                return new PathResult(first_dir,num_steps,current_location);
             }
             if (!rc.canSenseLocation(current_location))
             {
-                return new pathResult(first_dir,num_steps,current_location);
+                return new PathResult(first_dir,num_steps,current_location);
             }
 
         }
@@ -443,15 +688,491 @@ public strictfp class RobotPlayer {
         } else return false;
     }
 
+    static int addToMessage(int[] message, int remaining_bits, int data, int data_label, int data_size){
+        int data_label_size = 5;
+        int shift = ((remaining_bits - 1) % 32 + 1 - data_label_size);
+
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label >>> Math.max(0, -shift)) << Math.max(0, shift);
+        remaining_bits -= data_label_size - Math.max(0, -shift);
+
+        if (shift < 0) {
+            message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
+            remaining_bits -= Math.max(0, -shift);
+        }
+
+        shift = ((remaining_bits - 1) % 32 + 1 - data_size);
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data >>> Math.max(0, -shift)) << Math.max(0, shift);
+
+        remaining_bits -= data_size - Math.max(0, -shift);
+        if (shift < 0){
+            message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
+            remaining_bits -= Math.max(0, -shift);            
+        }
+
+        return remaining_bits;
+    }
+
+    static void addPasswordAndHashToMessage(int[] message){
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += blockchain_password << 22;
+        String message_serialized = "";
+        for (int i = 0; i != GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH; i++){
+            message_serialized += Integer.toString(message[i]) + "_"; 
+        }
+        int hash = message_serialized.hashCode();
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash >>> 10;
+    }
+
+    static int getBitRange(int[] message, int start, int length){
+
+        int value = (message[start / 32] << start % 32 >>> 32 - length);
+        if (start % 32 + length > 32){
+            value += (message[(start + length) / 32] >>> 64 - start - length);
+        }
+
+        return value;
+    }
+
+    static void updateMissionStatus(Report report, ArrayList<RobotStatus> robots){
+        for (RobotStatus r : robots){
+            if (r.robot_id == report.robot_id){
+                for (int i = 0; i != r.missions.size(); i++){
+                    Mission mission = r.missions.get(i);
+                    if (mission.mission_type == report.mission_type){
+                        r.missions.remove(i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    static void updateMissionStatus(Report report){
+        switch(report.robot_type){
+            case MINER:  
+                updateMissionStatus(report, miners);
+                break;
+            case REFINERY: 
+                updateMissionStatus(report, refineries);
+                break;
+            case VAPORATOR:
+                updateMissionStatus(report, vaporators);
+                break;
+            case DESIGN_SCHOOL:
+                updateMissionStatus(report, design_schools);
+                break;
+            case FULFILLMENT_CENTER:
+                updateMissionStatus(report, fulfillment_centers);
+                break;
+            case LANDSCAPER:  
+                updateMissionStatus(report, landscapers);
+                break;
+            case DELIVERY_DRONE: 
+                updateMissionStatus(report, drones);
+                break;
+            case NET_GUN:
+                updateMissionStatus(report, net_guns);
+                break;        
+        }
+    }
+
+    static void updateRobot(Report report){
+        if (possible_symmetries.size() > 1 && symmetric_HQ_locs[0] != null){
+            for (int i = 0; i != symmetric_HQ_locs.length; i++){
+                if (possible_symmetries.contains(Symmetry.values()[i]) && report.location.equals(symmetric_HQ_locs[i])){
+                    if (report.report_type == ReportType.ROBOT && report.robot_type == RobotType.HQ){
+                        possible_symmetries.clear();
+                        possible_symmetries.add(Symmetry.values()[i]);
+                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                        }
+                        return;
+                    }
+                    else{
+                        possible_symmetries.remove(Symmetry.values()[i]);
+                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                        }
+                        return;
+                    } 
+                }
+            }
+        }      
+    }
+
+    static void updateFromReport (Report report) throws GameActionException{
+        // Update mission status
+        // Update enemy HQ loc
+
+        switch(report.report_type){
+            case SOUP:
+                break;
+            case ROBOT:
+                updateRobot(report);
+                break;
+            case NO_ROBOT:
+                updateRobot(report);
+                break;
+            case MISSION_STATUS:
+                if (rc.getType() == RobotType.HQ)
+                    updateMissionStatus(report);
+                break;
+            default:
+                break;
+        }
+    }
+
+    static boolean checkPasswordAndHash(int[] message){
+        if (blockchain_password_hashes.contains(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
+            return false;
+        int pass = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;
+        if (pass != blockchain_password) 
+            return false;
+        int hash = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] << 10 >>> 10;
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22 << 22;
+        String message_serialized = "";
+        for (int i = 0; i != GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH; i++){
+            message_serialized += Integer.toString(message[i]) + "_"; 
+        }
+        if (hash != message_serialized.hashCode()>>>10)
+            return false;
+        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash;
+        return true; 
+    }
+
+    static void readMessage(int[] message) throws GameActionException {
+        if (!checkPasswordAndHash(message)){
+            return;
+        }
+        blockchain_password_hashes.add(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]);
+        // Check if valid message from our team
+        int start_bit = 0;
+        int data_label_size = 5;
+
+        Mission mission = null;
+        boolean on_mission = false;
+        boolean cleared_old_missions = false;
+
+        Report report = null;
+
+        while (true){
+            Label data_label = Label.values()[getBitRange(message, start_bit, data_label_size)];
+            start_bit += data_label_size;
+
+            switch(data_label){
+                case MISSION_TYPE:
+                    if (mission != null && on_mission){
+                        if (!cleared_old_missions){
+                            active_missions.clear();
+                            cleared_old_missions = true;
+                        }
+                        System.out.println("Added mission");
+                        active_missions.add(mission);
+                        mission = null;
+                        on_mission = false;
+                    }
+                    if (report == null){
+                        mission = new Mission();
+                        mission.mission_type = MissionType.values()[getBitRange(message, start_bit, 5)];
+                        start_bit += 5;
+                    }
+                    else{
+                        report.mission_type = MissionType.values()[getBitRange(message, start_bit, 5)];
+                        start_bit += 5;   
+                    }
+                    break;
+                case ROBOT_ID:
+                    int length = 15;
+                    int robot_id = getBitRange(message, start_bit, length);
+                    start_bit += 15;
+                    if (mission != null){
+                        mission.robot_ids.add(robot_id);
+
+                        if (robot_id == rc.getID()){
+                            on_mission = true;
+                        }
+                    }
+                    if (report != null){
+                        report.robot_id = robot_id;
+                    }
+                    break;                
+                case LOCATION:
+                    int x = getBitRange(message, start_bit, 6);
+                    start_bit += 6;
+                    int y = getBitRange(message, start_bit, 6);
+                    start_bit += 6;
+                    if (mission != null){
+                        mission.location = new MapLocation(x,y);
+                    }
+                    if (report != null){
+                        report.location = new MapLocation(x,y);
+                    }
+                    break;
+                case REPORT_TYPE:
+                    if (mission != null && on_mission){
+                        if (!cleared_old_missions){
+                            active_missions.clear();
+                            cleared_old_missions = true;
+                        }
+                        System.out.println("Added mission");
+                        active_missions.add(mission);
+                        mission = null;
+                        on_mission = false;
+                    }    
+                    if (report != null){
+                        updateFromReport(report);
+                        report = null;
+                    }          
+                    report = new Report(); 
+                    report.report_type = ReportType.values()[getBitRange(message, start_bit, 5)];
+                    start_bit += 5;                         
+                    break;
+                case ROBOT_TYPE:
+                    if (report != null){
+                        report.robot_type = RobotType.values()[getBitRange(message, start_bit, 4)];
+                        start_bit += 4;
+                    }
+                    break;
+                case ROBOT_TEAM:
+                   if (report != null){
+                        report.robot_team = (getBitRange(message, start_bit, 1) != 0);
+                        start_bit += 1;
+                    }
+                    break;
+                case MISSION_SUCCESSFUL:
+                    if (report != null){
+                        report.successful = (getBitRange(message, start_bit, 1) != 0);
+                        start_bit += 1;
+                    }
+                    break;
+                case SOUP_AMOUNT:
+                    break;
+                case END_MESSAGE:
+                    if (mission != null && on_mission){
+                        if (!cleared_old_missions){
+                            active_missions.clear();
+                            cleared_old_missions = true;
+                        }
+                        System.out.println("Added mission");
+                        active_missions.add(mission);
+                        mission = null;
+                        on_mission = false;
+                    }   
+                    if (report != null){
+                        updateFromReport(report);
+                        report = null;
+                    }   
+                    return;             
+                    // break;
+            }   
+        }
+    }
+
+    static void readBlockChain() throws GameActionException{
+        int current_round = rc.getRoundNum();
+        if (current_round <= 1) return;
+        while (blockchain_read_index < current_round){
+            System.out.println("reading blockchain: round " + blockchain_read_index);
+            Transaction[] block = rc.getBlock(blockchain_read_index);
+            for (Transaction msg : block){
+                System.out.println("Active Missions");
+                System.out.println(active_missions.size());
+                readMessage(msg.getMessage());
+                System.out.println(active_missions.size());
+            }   
+            blockchain_read_index++;
+        }
+    }
+
+    static int getMissionBits(Mission mission){
+        int mission_bits = 0; 
+        mission_bits += 5 + 5; // Data Type Tag #bits Mission type #bits
+        mission_bits += (5 + 15)*mission.robot_ids.size(); // Robot ID #bits
+        mission_bits += 5 + 12; // Location # bits
+        mission_bits += 5; // End message label
+        mission_bits += 10; // Password 
+        mission_bits += 22; // hash
+        return mission_bits;
+    }
+
+    static int getReportBits(Report report){
+        ReportType report_type;
+        MapLocation location; // null
+        RobotType robot_type;
+        boolean robot_team;
+        int robot_id;
+        int soup_amount;
+        MissionType mission_type;
+        boolean successful;
+
+        int report_bits = 0;
+        report_bits += 5 + 5; // Report type
+
+        switch(report.report_type){
+            case SOUP:
+                break;
+            case ROBOT:
+                report_bits += 5 + 15; // Robot ID
+                report_bits += 5 + 12; // location
+                report_bits += 5 + 4; // robot_type
+                report_bits += 5 + 1; // team
+                break;
+            case NO_ROBOT:
+                report_bits += 5 + 12; // location
+                break;
+            case MISSION_STATUS:
+                report_bits += 5 + 15; // Robot ID
+                report_bits += 5 + 4; // robot_type
+                report_bits += 5 + 5; // Mission type
+                report_bits += 5 + 1; // Mission success
+                break;
+        }
+        report_bits += 10; // Password
+        report_bits += 22; // hash
+        return report_bits;
+    }
 
     static void tryBlockchain() throws GameActionException {
-        if (turnCount < 3) {
-            int[] message = new int[10];
-            for (int i = 0; i < 10; i++) {
-                message[i] = 123;
+        if (rc.getRoundNum() == 0)
+            return;
+        if (rc.getType() == RobotType.HQ){
+            if (mission_queue.size() == 0){
+                System.out.println("No Missions");
+                return;
             }
-            if (rc.canSubmitTransaction(message, 10))
-                rc.submitTransaction(message, 10);
+
+            int[] message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+            int remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+            int i = 0;
+
+            Mission mission = new Mission();
+
+            while(i < mission_queue.size()){
+                mission = mission_queue.get(i);
+
+                int mission_bits = getMissionBits(mission);
+
+                if (mission_bits > remaining_bits){
+                    addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
+                    addPasswordAndHashToMessage(message);
+
+                    if (rc.canSubmitTransaction(message, 1))
+                        rc.submitTransaction(message, 1);
+                        for (RobotStatus rs : miners){
+                            for (int id : mission.robot_ids){
+                                if (rs.robot_id == id){
+                                    rs.missions.clear();
+                                    rs.missions.add(mission);                            
+                                }
+                            }                        
+                        }
+
+                    remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+                    message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+                    continue;
+                } 
+
+                remaining_bits = addToMessage(message, remaining_bits, mission.mission_type.ordinal(), Label.MISSION_TYPE.ordinal(), 5);
+                for (int id : mission.robot_ids){
+                    remaining_bits = addToMessage(message, remaining_bits, id, Label.ROBOT_ID.ordinal(), 15);
+                }
+                remaining_bits = addToMessage(message, remaining_bits, (mission.location.x << 6) + mission.location.y, Label.LOCATION.ordinal(), 12);
+                i++;
+            }
+
+            addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
+            addPasswordAndHashToMessage(message);
+
+            if (rc.canSubmitTransaction(message, 1)){
+                rc.submitTransaction(message, 1);
+                for (RobotStatus rs : miners){
+                    for (int id : mission.robot_ids){
+                        if (rs.robot_id == id){
+                            rs.missions.clear();
+                            rs.missions.add(mission);                            
+                        }
+                    }                        
+                }
+            }
+        }
+        else{
+            if (report_queue.size() == 0){
+                System.out.println("No Reports");
+                return;
+            }
+
+            int[] message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+            int remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+            int i = 0;
+
+            Report report = new Report();
+
+            ArrayList<Integer> ind_to_remove = new ArrayList<Integer>();
+            ArrayList<Integer> ind_to_remove_cumm = new ArrayList<Integer>();
+
+
+            while(i < report_queue.size()){
+                report = report_queue.get(i);
+                int report_bits = 0; 
+
+                // Check SIZE
+                // report_bits += 5 + 5; // Data Type Tag #bits Mission type #bits
+                // report_bits += (5 + 15)*mission.robot_ids.size(); // Robot ID #bits
+                // report_bits += 5 + 12; // Location # bits
+                // report_bits += 5; // End message label
+
+                if (report_bits > remaining_bits){
+                    addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
+                    addPasswordAndHashToMessage(message);
+
+                    if (rc.canSubmitTransaction(message, 1))
+                        rc.submitTransaction(message, 1);
+
+                        ind_to_remove_cumm.addAll(ind_to_remove);
+                        ind_to_remove.clear();
+
+                    remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+                    message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+                    continue;
+                } 
+
+                remaining_bits = addToMessage(message, remaining_bits, report.report_type.ordinal(), Label.REPORT_TYPE.ordinal(), 5);
+                if (report.report_type == ReportType.MISSION_STATUS){
+                    remaining_bits = addToMessage(message, remaining_bits, report.robot_type.ordinal(), Label.ROBOT_TYPE.ordinal(), 4);
+                    remaining_bits = addToMessage(message, remaining_bits, report.robot_id, Label.ROBOT_ID.ordinal(), 15);
+                    remaining_bits = addToMessage(message, remaining_bits, report.mission_type.ordinal(), Label.MISSION_TYPE.ordinal(), 5); 
+                    remaining_bits = addToMessage(message, remaining_bits, report.successful ? 1:0, Label.MISSION_SUCCESSFUL.ordinal(), 1); 
+                }
+                else if (report.report_type == ReportType.ROBOT){
+                    remaining_bits = addToMessage(message, remaining_bits, report.robot_id, Label.ROBOT_ID.ordinal(), 15);
+                    remaining_bits = addToMessage(message, remaining_bits, report.robot_type.ordinal(), Label.ROBOT_TYPE.ordinal(), 4);
+                    remaining_bits = addToMessage(message, remaining_bits, report.robot_team ? 1:0, Label.ROBOT_TEAM.ordinal(), 1);
+                    remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
+                }
+                else if (report.report_type == ReportType.NO_ROBOT){
+                    remaining_bits = addToMessage(message, remaining_bits, (report.location.x << 6) + report.location.y, Label.LOCATION.ordinal(), 12);
+                }
+                ind_to_remove.add(i);
+                i++;
+            }
+
+            addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
+            addPasswordAndHashToMessage(message);
+
+            if (rc.canSubmitTransaction(message, 1)){
+                rc.submitTransaction(message, 1);
+                ind_to_remove_cumm.addAll(ind_to_remove);
+                ind_to_remove.clear();
+            }
+
+            for (int j = ind_to_remove_cumm.size() - 1; j >= 0; j--){
+                report_queue.remove(j);
+            }
+
+
+
+
         }
         // System.out.println(rc.getRoundMessages(turnCount-1));
     }

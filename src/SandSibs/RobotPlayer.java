@@ -737,7 +737,7 @@ public strictfp class RobotPlayer {
         
         if(rc.isCurrentlyHoldingUnit() && enemyUnitInDrone){
             for(Direction dir : directions){
-                if(rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
+                if(rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
                     rc.dropUnit(dir);
                     enemyUnitInDrone = false;
                 }

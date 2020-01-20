@@ -224,6 +224,15 @@ public strictfp class RobotPlayer {
         readBlockChain();
         updateMapRobots();
 
+        System.out.println("Find design school location");
+        MapLocation design_school_location = chooseDesignSchoolLocation();
+        System.out.println("Design school location: "+ design_school_location.x + ", "+ design_school_location.y);
+
+        System.out.println("Find FC location");
+        MapLocation fc_location = chooseFulfillmentCenterLocation(design_school_location);
+        System.out.println("FC location: "+ fc_location.x + ", "+ fc_location.y);
+
+
         for (RobotStatus ed :enemy_drones){
             if (rc.canShootUnit(ed.robot_id)){
                 rc.shootUnit(ed.robot_id);
@@ -555,6 +564,310 @@ public strictfp class RobotPlayer {
             report_queue.add(report);
             active_missions.remove(0);
         }
+    }
+
+    static MapLocation[] getBaseBounds() throws GameActionException{
+        int min_x = HQ_loc.x - 1;
+        int max_x = HQ_loc.x + 1;
+        int min_y = HQ_loc.y - 1;
+        int max_y = HQ_loc.y + 1;
+
+        int map_width = rc.getMapWidth();
+        int map_height = rc.getMapHeight();
+
+        if (min_x < 0){
+            max_x -= min_x;
+            min_x = 0;
+        }
+        else if (max_x >= map_width){
+            min_x -= max_x - map_width + 1;
+            max_x = map_width - 1;
+        }
+        if (min_y < 0){
+            max_y -= min_y;
+            min_y = 0;
+        }
+        else if (max_y >= map_height){
+            min_y -= max_y - map_height + 1;
+            max_y = map_height - 1;
+        }
+        MapLocation[] bounds = {new MapLocation(min_x,min_y), new MapLocation(max_x, max_y)};      
+        return bounds;  
+    }
+
+    static Direction[] getExitPriority() throws GameActionException{
+        MapLocation[] base_bounds = getBaseBounds();
+
+        ArrayList<Direction> exit_directions = new ArrayList<Direction>();
+        exit_directions.add(Direction.NORTH);
+        exit_directions.add(Direction.WEST);
+        exit_directions.add(Direction.SOUTH);
+        exit_directions.add(Direction.EAST);
+
+        ArrayList<Direction> exit_priority = new ArrayList<Direction>();
+
+        while (exit_directions.size() > 0){
+            int longest_dist = -100;
+            int longest_index = -1;
+            for (int i = 0; i != exit_directions.size(); i++){
+                Direction dir = exit_directions.get(i);
+                int dist = 0;
+                switch(dir){
+                    case NORTH:
+                        dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
+                        break;
+                    case WEST:
+                        dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
+                        break;
+                    case SOUTH:
+                        dist = base_bounds[0].x;   
+                        break;
+                    case EAST:
+                        dist = base_bounds[0].y;   
+                        break;
+                }
+                if (dist > longest_dist){
+                    longest_dist = dist;
+                    longest_index = i;
+                }
+            }
+            if (longest_dist > 5){
+                exit_priority.add(exit_directions.get(i));
+            }
+            exit_directions.remove(i);
+        }
+
+        return exit_priority;
+    }
+
+    static MapLocation chooseDesignSchoolLocation() throws GameActionException{
+        MapLocation[] base_bounds = getBaseBounds();
+        Direction[] exit_priority = getExitPriority();
+
+        if (HQ_loc.x != base_bounds[0].x && HQ_loc.x != base_bounds[1].x && HQ_loc.y != base_bounds[0].y && HQ_loc.y != base_bounds[1].y){
+
+        }
+
+        // if centered
+            // Try diagonal near best 2 exits (1)
+            // Try diagonal near best exit (1)
+            // Try diagonal near other exit (1)
+            // Try last diagonal (2)
+            // Try edge 90 degrees from best exit (2)
+            // Try edge 90 degrees from other exit (2)
+
+
+
+        // MapLocation[] base_bounds = getBaseBounds();
+        // double best_score = 0;
+        // MapLocation best_location = null;
+        // // System.out.println("Start choose design school");
+        // for (int x = base_bounds[0].x; x <= base_bounds[1].x; x++){
+        //     for (int y = base_bounds[0].y; y <= base_bounds[1].y; y++){
+        //         MapLocation loc = new MapLocation(x,y);
+        //         if (!loc.equals(HQ_loc) && rc.canSenseLocation(loc) && rc.canSenseLocation(HQ_loc) && 
+        //             Math.abs(rc.senseElevation(loc)-rc.senseElevation(HQ_loc))<= 3 &&
+        //             (rc.senseRobotAtLocation(loc) == null || rc.senseRobotAtLocation(loc).getTeam() == rc.getTeam().opponent())){
+        //             boolean can_build = false;
+        //             for (Direction dir : directions){
+        //                 MapLocation loc2 = loc.add(dir);
+        //                 if (!loc2.equals(HQ_loc) && rc.canSenseLocation(loc2) &&
+        //                     Math.abs(rc.senseElevation(loc2)-rc.senseElevation(loc))<= 3 && 
+        //                     (rc.senseRobotAtLocation(loc2) == null || rc.senseRobotAtLocation(loc2).getTeam() == rc.getTeam().opponent())){
+        //                     can_build = true;
+        //                     break;
+        //                 }
+        //             }
+        //             if (can_build){
+        //                 MapLocation fulfillment_center_location = chooseFulfillmentCenterLocation(loc);
+        //                 double score = baseLayoutScore(loc, fulfillment_center_location);
+        //                 if (score > best_score){
+        //                     best_score = score;
+        //                     best_location = loc;
+        //                 }
+        //             }
+        //         } 
+        //     }
+        // }
+        // // System.out.println("End choose design school");
+
+        return best_location;
+    }
+
+    static MapLocation chooseFulfillmentCenterLocation(MapLocation design_school_location) throws GameActionException{
+        // 0 1 2
+        // 3 4 5
+        // 6 7 8
+
+        // If centered
+            // in order of preferred direction 
+                // re-orient
+                // if DS at 0
+                    // try 5, 2
+                // if DS at 1
+                    // try 8
+                // if DS at 2
+                    // try 8
+                // if DS at 6
+                    // try 5, 8
+                // if DS at 7
+                    // try 2
+                // if DS at 8
+                    // try 2
+            // in order of preferred direction
+                // re-orient
+                // if DS at 0
+                    // try 8, 7
+                // if DS at 1
+                    // try 7
+                // if DS at 2
+                    // try 7
+                // if DS at 6
+                    // try 2, 1
+                // if DS at 7
+                    // try 1
+                // if DS at 8
+                    // try 1
+
+
+
+        // MapLocation[] base_bounds = getBaseBounds();
+        // double best_score = 0;
+        // MapLocation best_location = null;
+        // // System.out.println("Start choose fulfillment center");
+
+        // for (int x = base_bounds[0].x; x <= base_bounds[1].x; x++){
+        //     for (int y = base_bounds[0].y; y <= base_bounds[1].y; y++){
+        //         MapLocation loc = new MapLocation(x,y);
+        //         if (!loc.equals(HQ_loc) && !loc.equals(design_school_location) && rc.canSenseLocation(loc) &&
+        //             (rc.senseRobotAtLocation(loc) == null || rc.senseRobotAtLocation(loc).getTeam() == rc.getTeam().opponent())){
+        //             double score = baseLayoutScore(design_school_location, loc);
+        //             if (score > best_score){
+        //                 best_score = score;
+        //                 best_location = loc;
+        //             }                
+        //         } 
+        //     }
+        // }
+
+        // // System.out.println("End choose fulfillment center");
+
+        return best_location;
+    }
+
+    static boolean isInsideBase(MapLocation[] base_bounds, MapLocation loc){
+        return (loc.x >= base_bounds[0].x && loc.x <= base_bounds[1].x && loc.y >= base_bounds[0].y && loc.y <= base_bounds[1].y);
+    }
+
+    static double baseLayoutScore(MapLocation design_school_location, MapLocation fulfillment_center_location) throws GameActionException{
+        MapLocation[] base_bounds = getBaseBounds();
+        double best_score = 0;
+        // System.out.println("Start base layout score "+ Clock.getBytecodeNum());
+        for (Direction dir1 : directions){
+            MapLocation landscaper_dropoff = design_school_location.add(dir1);
+            if (landscaper_dropoff.equals(HQ_loc) || landscaper_dropoff.equals(fulfillment_center_location) || !isInsideBase(base_bounds, landscaper_dropoff)){
+                continue;
+            }
+            for (Direction dir2 : directions){
+                MapLocation drone_dropoff = fulfillment_center_location.add(dir2);
+                if (drone_dropoff.equals(HQ_loc) || drone_dropoff.equals(fulfillment_center_location) ||
+                    drone_dropoff.equals(landscaper_dropoff) || !isInsideBase(base_bounds, drone_dropoff)){
+                    continue;
+                }
+                double score = baseLayoutScoreFullInput(design_school_location, fulfillment_center_location, landscaper_dropoff, drone_dropoff);
+                if (score > best_score){
+                    best_score = score;
+                }
+            }
+        }
+        // System.out.println("End base layout score " + Clock.getBytecodeNum());
+
+        return best_score;
+
+    }
+
+    static double baseLayoutScoreFullInput(MapLocation design_school_location, MapLocation fulfillment_center_location, MapLocation landscaper_dropoff, MapLocation drone_dropoff) throws GameActionException{
+        MapLocation[] base_bounds = getBaseBounds();
+        int largest_distance_from_HQ = 0;
+        // System.out.println("Start base layout score full"+ Clock.getBytecodeNum());
+
+        for (int i = 0; i != 4; i++){
+            int dist = 0;
+            switch(i){
+                case 0: // Right
+                    dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
+                    break;
+                case 1: // Up
+                    dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
+                    break;
+                case 2: // Left
+                    dist = base_bounds[0].x;   
+                    break;
+                case 3: // Down
+                    dist = base_bounds[0].y;   
+                    break;
+            }
+            if (dist > largest_distance_from_HQ){
+                largest_distance_from_HQ = dist;
+            }
+        }
+        double score = 0;
+        if (landscaper_dropoff.isAdjacentTo(HQ_loc) || drone_dropoff.isAdjacentTo(HQ_loc)){
+            score += 5000;
+        }
+        if (landscaper_dropoff.isAdjacentTo(drone_dropoff)){
+            score += 1000;
+        }
+        double exit_score = 0;
+        for (int i = 0; i != 4; i++){
+            // Check if drone dropoff near exit. Calculate exit score
+            // Bonus if landscaper dropoff is near same exit and FC
+            double exit_score_i = 0;
+            switch(i){
+                case 0: // Right
+                    if (drone_dropoff.x == base_bounds[1].x){
+                        exit_score_i = (rc.getMapWidth() - 1 - base_bounds[1].x)*500.0/largest_distance_from_HQ;
+                        if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.x == base_bounds[1].x){
+                            exit_score_i += 100;
+                        }
+                    }
+                    break;
+                case 1: // Up
+                    if (drone_dropoff.y == base_bounds[1].y){
+                        exit_score_i = (rc.getMapHeight() - 1 - base_bounds[1].y)*500.0/largest_distance_from_HQ;
+                        if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.y == base_bounds[1].y){
+                            exit_score_i += 100;
+                        }
+                    }
+                    break;
+                case 2: // Left
+                    if (drone_dropoff.x == base_bounds[0].x){
+                        exit_score_i = base_bounds[0].x*500.0/largest_distance_from_HQ;
+                        if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.x == base_bounds[0].x){
+                            exit_score_i += 100;
+                        }
+                    }
+                    break;
+                case 3: // Down
+                    if (drone_dropoff.y == base_bounds[0].y){
+                        exit_score_i = base_bounds[0].y*500.0/largest_distance_from_HQ;
+                        if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.y == base_bounds[0].y){
+                            exit_score_i += 100;
+                        }
+                    }
+                    break;
+            }
+            if (exit_score_i > exit_score){
+                exit_score = exit_score_i;
+            }
+        }
+
+        // Could add score for vaporator continuity
+
+        score += exit_score;
+        // System.out.println("End base layout score full " + Clock.getBytecodeNum());
+
+        return score;
     }
 
     static void runMiner() throws GameActionException {

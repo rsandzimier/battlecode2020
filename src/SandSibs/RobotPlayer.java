@@ -420,7 +420,7 @@ public strictfp class RobotPlayer {
     }
 
     static RobotStatus nearestRefinery() throws GameActionException{
-        int dist = 100;
+        int dist = 10000;
         RobotStatus refinery = null;
         for (RobotStatus rs : refineries){
             int dist_rs = rc.getLocation().distanceSquaredTo(rs.location);
@@ -470,7 +470,7 @@ public strictfp class RobotPlayer {
 
             ;
         }
-        else if (distanceSquaredToNearestRefinery() > 10 && adjacentToSoup() && tryBuildRefinery()){
+        else if (distanceSquaredToNearestRefinery() > 50 && adjacentToSoup() && tryBuildRefinery()){
             ; 
         }
         else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
@@ -482,7 +482,7 @@ public strictfp class RobotPlayer {
                 moveToLocationUsingBugPathing(HQ_loc);
             }
         }
-        else if ((HQ_loc != null && (!rc.getLocation().isWithinDistanceSquared(HQ_loc, 8)) || design_schools.size() == 0) && tryMine()){
+        else if ((HQ_loc != null && (!rc.getLocation().isWithinDistanceSquared(HQ_loc, 8) || (design_schools.size() == 0 && !rc.getLocation().isWithinDistanceSquared(HQ_loc, 2))) && tryMine())){
             boolean should_report = true;
             for (MapLocation loc : soup_deposits_public){
                 if (rc.getLocation().isWithinDistanceSquared(loc, 25)){
@@ -626,7 +626,6 @@ public strictfp class RobotPlayer {
         if (rc.getTeamSoup() >= 350  || rc.getRoundNum() > 800){
             RobotInfo[] nearby_robots = rc.senseNearbyRobots();
 
-            System.out.println(HQ_loc);
             int count = 0;
             int count_LS = 0;
             for (RobotInfo nr : nearby_robots){
@@ -781,7 +780,7 @@ public strictfp class RobotPlayer {
         
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         for(int i=0; i < nearby_robots.length; i++){
-            if(nearby_robots[i].getTeam() != ourTeam){
+            if(nearby_robots[i].getTeam() != ourTeam && nearby_robots[i].getType().canBePickedUp()){
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
                     rc.pickUpUnit(nearby_robots[i].getID());
                     enemyUnitInDrone = true;
@@ -1011,7 +1010,7 @@ public strictfp class RobotPlayer {
                     fulfillment_centers.add(rs);
                 }
             }
-            if (robot_type == RobotType.DELIVERY_DRONE && rc.getTeam() != nr.getTeam() && rc.getLocation().isWithinDistanceSquared(nr.getLocation(), GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)){
+            if (nr.getType() == RobotType.DELIVERY_DRONE && rc.getTeam() != nr.getTeam() && rc.getLocation().isWithinDistanceSquared(nr.getLocation(), GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)){
                 RobotStatus rs = new RobotStatus(nr.getID());
                 rs.location = nr.getLocation();
                 enemy_drones.add(rs);

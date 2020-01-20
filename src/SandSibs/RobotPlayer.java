@@ -667,15 +667,42 @@ public strictfp class RobotPlayer {
         
         else{
             MapLocation buildLocation = checkElevationsOfWall();
-            if(buildLocation == rc.getLocation()){
-                if(rc.canDepositDirt(Direction.CENTER) && rc.isReady()) rc.depositDirt(Direction.CENTER);
-                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
-                else;
-            }
-            else if(rc.getLocation().isAdjacentTo(buildLocation)){
-                if(rc.canDepositDirt(rc.getLocation().directionTo(buildLocation)) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(buildLocation));
-                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
-                else;
+            if(rc.getLocation().equals(buildLocation) || rc.getLocation().isAdjacentTo(buildLocation)){
+                if(rc.canDepositDirt(rc.getLocation().directionTo(buildLocation)) && rc.isReady()){
+                    rc.depositDirt(rc.getLocation().directionTo(buildLocation));
+                } 
+                else {
+                    int dx = HQ_loc.x - rc.getLocation().x;
+                    int dy = HQ_loc.y - rc.getLocation().y;
+                    int min_x = 100;
+                    int max_x = 0;
+                    int min_y = 100;
+                    int max_y = 0;
+                    for (MapLocation wl : wallLocation){
+                        System.out.println(wl.x + ", " + wl.y);
+                        if (wl.x < min_x)
+                            min_x = wl.x;
+                        if (wl.x > max_x)
+                            max_x = wl.x;                        
+                        if (wl.y < min_y)
+                            min_y = wl.y;                        
+                        if (wl.y > max_y)
+                            max_y = wl.y;
+                    }
+
+                    System.out.println("min x: " + min_x + " max x: " + max_x + " min y: "+min_y+" max y: "+max_y);
+                    
+                    for (Direction dir : directions){
+                        MapLocation dig_location = rc.getLocation().add(dir);
+                        if (dig_location.x >= min_x && dig_location.x <= max_x && dig_location.y >= min_y && dig_location.y <= max_y){
+                            continue;
+                        }
+                        if(rc.canDigDirt(dir) && rc.isReady()) {
+                            rc.digDirt(dir);
+                            break;
+                        }
+                    }
+                }
             }
             else {
                 moveToLocationUsingBugPathing(buildLocation);

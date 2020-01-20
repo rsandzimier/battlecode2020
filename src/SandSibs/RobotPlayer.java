@@ -644,8 +644,19 @@ public strictfp class RobotPlayer {
         MapLocation[] base_bounds = getBaseBounds();
         Direction[] exit_priority = getExitPriority();
 
-        if (HQ_loc.x != base_bounds[0].x && HQ_loc.x != base_bounds[1].x && HQ_loc.y != base_bounds[0].y && HQ_loc.y != base_bounds[1].y){
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
 
+        if (HQ_loc.equals(center)){
+            Direction exit1 = exit_priority[0];
+            Direction exit2 = exit_priority[1];
+            if (exit1 == exit2.opposite()){
+                exit2 = exit_priority[2];
+            }
+            int elevation_HQ = 0;
+            if (rc.canSenseLocation(HQ_loc)){
+                elevation_HQ = rc.senseElevation(HQ_loc)
+            }
+            
         }
 
         // if centered

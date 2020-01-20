@@ -749,6 +749,7 @@ public strictfp class RobotPlayer {
                 moveToLocationUsingBugPathing(drop_location);
             else
                 tryMove(randomDirection());
+            return;
         }
         
         if(rc.isCurrentlyHoldingUnit() && allyLandscaperUnitInDrone){

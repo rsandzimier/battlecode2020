@@ -365,6 +365,9 @@ public strictfp class RobotPlayer {
                     default:
                         break;                    
                 }
+                if (mission.robot_type == RobotType.FULFILLMENT_CENTER && design_schools.size()==0){
+                    continue;
+                }
                 if (tryBuild(mission.robot_type, dir)){
                     Report report = new Report();
                     report.report_type = ReportType.MISSION_STATUS;

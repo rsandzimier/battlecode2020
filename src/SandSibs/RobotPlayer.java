@@ -682,7 +682,6 @@ public strictfp class RobotPlayer {
                     int min_y = 100;
                     int max_y = 0;
                     for (MapLocation wl : wallLocation){
-                        System.out.println(wl.x + ", " + wl.y);
                         if (wl.x < min_x)
                             min_x = wl.x;
                         if (wl.x > max_x)
@@ -692,8 +691,6 @@ public strictfp class RobotPlayer {
                         if (wl.y > max_y)
                             max_y = wl.y;
                     }
-
-                    System.out.println("min x: " + min_x + " max x: " + max_x + " min y: "+min_y+" max y: "+max_y);
                     
                     for (Direction dir : directions){
                         MapLocation dig_location = rc.getLocation().add(dir);

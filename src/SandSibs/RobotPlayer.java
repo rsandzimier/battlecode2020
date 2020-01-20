@@ -420,7 +420,7 @@ public strictfp class RobotPlayer {
     }
 
     static RobotStatus nearestRefinery() throws GameActionException{
-        int dist = 100;
+        int dist = 10000;
         RobotStatus refinery = null;
         for (RobotStatus rs : refineries){
             int dist_rs = rc.getLocation().distanceSquaredTo(rs.location);
@@ -470,7 +470,7 @@ public strictfp class RobotPlayer {
 
             ;
         }
-        else if (distanceSquaredToNearestRefinery() > 10 && adjacentToSoup() && tryBuildRefinery()){
+        else if (distanceSquaredToNearestRefinery() > 50 && adjacentToSoup() && tryBuildRefinery()){
             ; 
         }
         else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
@@ -482,7 +482,7 @@ public strictfp class RobotPlayer {
                 moveToLocationUsingBugPathing(HQ_loc);
             }
         }
-        else if ((HQ_loc != null && (!rc.getLocation().isWithinDistanceSquared(HQ_loc, 8)) || design_schools.size() == 0) && tryMine()){
+        else if ((HQ_loc != null && (!rc.getLocation().isWithinDistanceSquared(HQ_loc, 8) || (design_schools.size() == 0 && !rc.getLocation().isWithinDistanceSquared(HQ_loc, 2))) && tryMine())){
             boolean should_report = true;
             for (MapLocation loc : soup_deposits_public){
                 if (rc.getLocation().isWithinDistanceSquared(loc, 25)){

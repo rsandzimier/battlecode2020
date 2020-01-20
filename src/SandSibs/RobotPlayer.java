@@ -737,7 +737,7 @@ public strictfp class RobotPlayer {
         
         if(rc.isCurrentlyHoldingUnit() && enemyUnitInDrone){
             for(Direction dir : directions){
-                if(rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
+                if(rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
                     rc.dropUnit(dir);
                     enemyUnitInDrone = false;
                 }
@@ -1193,20 +1193,20 @@ public strictfp class RobotPlayer {
         int data_label_size = 5;
         int shift = ((remaining_bits - 1) % 32 + 1 - data_label_size);
 
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label >>> Math.max(0, -shift)) << Math.max(0, shift);
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label >>> Math.max(0, -shift)) << Math.max(0, shift);
         remaining_bits -= data_label_size - Math.max(0, -shift);
 
         if (shift < 0) {
-            message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
+            message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data_label << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
             remaining_bits -= Math.max(0, -shift);
         }
 
         shift = ((remaining_bits - 1) % 32 + 1 - data_size);
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data >>> Math.max(0, -shift)) << Math.max(0, shift);
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data >>> Math.max(0, -shift)) << Math.max(0, shift);
 
         remaining_bits -= data_size - Math.max(0, -shift);
         if (shift < 0){
-            message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
+            message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
             remaining_bits -= Math.max(0, -shift);            
         }
 
@@ -1214,13 +1214,13 @@ public strictfp class RobotPlayer {
     }
 
     static void addPasswordAndHashToMessage(int[] message){
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += blockchain_password << 22;
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += blockchain_password << 22;
         String message_serialized = "";
-        for (int i = 0; i != GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH; i++){
+        for (int i = 0; i != GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH; i++){
             message_serialized += Integer.toString(message[i]) + "_"; 
         }
         int hash = message_serialized.hashCode();
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash >>> 10;
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash >>> 10;
     }
 
     static int getBitRange(int[] message, int start, int length){
@@ -1366,22 +1366,22 @@ public strictfp class RobotPlayer {
     }
 
     static boolean checkPasswordAndHash(int[] message){
-        if (message.length < GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH)
+        if (message.length < GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH)
             return false;
-        if (blockchain_password_hashes.contains(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
+        if (blockchain_password_hashes.contains(message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
             return false;
-        int pass = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;
+        int pass = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;
         if (pass != blockchain_password) 
             return false;
-        int hash = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] << 10 >>> 10;
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] = message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22 << 22;
+        int hash = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] << 10 >>> 10;
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22 << 22;
         String message_serialized = "";
-        for (int i = 0; i != GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH; i++){
+        for (int i = 0; i != GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH; i++){
             message_serialized += Integer.toString(message[i]) + "_"; 
         }
         if (hash != message_serialized.hashCode()>>>10)
             return false;
-        message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash;
+        message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash;
         return true; 
     }
 
@@ -1389,7 +1389,7 @@ public strictfp class RobotPlayer {
         if (!checkPasswordAndHash(message)){
             return;
         }
-        blockchain_password_hashes.add(message[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH - 1]);
+        blockchain_password_hashes.add(message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1]);
         // Check if valid message from our team
         int start_bit = 0;
         int data_label_size = 5;
@@ -1588,8 +1588,8 @@ public strictfp class RobotPlayer {
                 return;
             }
 
-            int[] message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
-            int remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+            int[] message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
+            int remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
             int i = 0;
 
             Mission mission = new Mission();
@@ -1614,8 +1614,8 @@ public strictfp class RobotPlayer {
                             }                        
                         }
 
-                    remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
-                    message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+                    remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
+                    message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
                     continue;
                 } 
 
@@ -1651,8 +1651,8 @@ public strictfp class RobotPlayer {
                 return;
             }
 
-            int[] message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
-            int remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
+            int[] message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
+            int remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
             int i = 0;
 
             Report report = new Report();
@@ -1681,8 +1681,8 @@ public strictfp class RobotPlayer {
                         ind_to_remove_cumm.addAll(ind_to_remove);
                         ind_to_remove.clear();
 
-                    remaining_bits = 32*GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH;
-                    message = new int[GameConstants.MAX_BLOCKCHAIN_TRANSACTION_LENGTH];
+                    remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
+                    message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
                     continue;
                 } 
 

@@ -51,7 +51,7 @@ public strictfp class RobotPlayer {
     }
     enum MissionType
     {
-        SCOUT, SCOUT_MINE, MINE, BUILD; 
+        SCOUT, SCOUT_MINE, MINE, BUILD, DRONE_DEFAULT; 
     }
     enum ReportType
     {
@@ -246,8 +246,8 @@ public strictfp class RobotPlayer {
                 }
             } 
 
-            for (RobotStatus rs : miners){
-                if (rs.missions.size() > 0 && rs.missions.get(0).mission_type == MissionType.SCOUT_MINE){
+            for (RobotStatus rs : drones){
+                if (rs.missions.size() > 0 && rs.missions.get(0).mission_type == MissionType.SCOUT){
                     MapLocation loc = rs.missions.get(0).location;
                     for (int i = 0; i != 3; i ++){
                         if (needsScouting[i] && loc.equals(symmetric_HQ_locs[i])){
@@ -256,21 +256,22 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-
-            for(int i = 0; i !=  miners.size(); i++){
-                for (int j = 0; j != 3; j++){
-                    if (needsScouting[j] && (miners.get(i).missions.size() == 0  || miners.get(i).missions.get(0).mission_type == MissionType.MINE)){
-                        // Assign this miner the mission
+            boolean assigned_scouting_mission = false;
+            for(int i = 0; i !=  drones.size() && !assigned_scouting_mission; i++){
+                for (int j = 0; j != 3 && !assigned_scouting_mission; j++){
+                    if (needsScouting[j] && ((drones.get(i).missions.size() == 0  || drones.get(i).missions.get(0).mission_type == MissionType.DRONE_DEFAULT))){
+                        // Assign this drone the mission
                         Mission new_mission = new Mission();
-                        new_mission.mission_type = MissionType.SCOUT_MINE;
+                        new_mission.mission_type = MissionType.SCOUT;
                         new_mission.location = symmetric_HQ_locs[j];
-                        new_mission.robot_ids.add(miners.get(i).robot_id);
+                        new_mission.robot_ids.add(drones.get(i).robot_id);
                         mission_queue.add(new_mission);
-                        break;
+                        assigned_scouting_mission = true;
                     }
                 }
             } 
-            if (fulfillment_centers.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+
+            if (fulfillment_centers.size() == 0 && miners.size() > 3){
                 Mission new_mission = null;
                 for (RobotStatus rs : miners){
                     if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD &&
@@ -278,7 +279,7 @@ public strictfp class RobotPlayer {
                         new_mission = null;
                         break;
                     }
-                    if (new_mission == null && rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                    if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
                         new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD;
                         new_mission.location = HQ_loc;
@@ -287,11 +288,12 @@ public strictfp class RobotPlayer {
                         new_mission.distance = 1;
                     }
                 }
-                if (new_mission != null)
+                if (new_mission != null){
                     mission_queue.add(new_mission);
+                }
             }
 
-            if (design_schools.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+            if (design_schools.size() == 0 && miners.size() > 3){
                 Mission new_mission = null;
                 for (RobotStatus rs : miners){
                     if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD &&
@@ -299,7 +301,7 @@ public strictfp class RobotPlayer {
                         new_mission = null;
                         break;
                     }
-                    if (new_mission == null && rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                    if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
                         boolean miner_already_queued = false;
                         for (Mission m : mission_queue){
                             if (m.robot_ids.size() != 0 &&  m.robot_ids.get(0) == rs.robot_id){
@@ -318,10 +320,11 @@ public strictfp class RobotPlayer {
                         new_mission.distance = 1;
                     }
                 }
-                if (new_mission != null)
+                if (new_mission != null){
                     mission_queue.add(new_mission);
+                }
+
             }
-            // If no needsScouting and builder is free        
         }
         tryBlockchain();
         mission_queue.clear();
@@ -362,8 +365,10 @@ public strictfp class RobotPlayer {
                     default:
                         break;                    
                 }
+                if (mission.robot_type == RobotType.FULFILLMENT_CENTER && design_schools.size()==0){
+                    continue;
+                }
                 if (tryBuild(mission.robot_type, dir)){
-                    System.out.print("Miner " + rc.getID() + " built "+ mission.robot_type);
                     Report report = new Report();
                     report.report_type = ReportType.MISSION_STATUS;
                     report.mission_type = mission.mission_type;
@@ -665,15 +670,39 @@ public strictfp class RobotPlayer {
         
         else{
             MapLocation buildLocation = checkElevationsOfWall();
-            if(buildLocation == rc.getLocation()){
-                if(rc.canDepositDirt(Direction.CENTER) && rc.isReady()) rc.depositDirt(Direction.CENTER);
-                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
-                else;
-            }
-            else if(rc.getLocation().isAdjacentTo(buildLocation)){
-                if(rc.canDepositDirt(rc.getLocation().directionTo(buildLocation)) && rc.isReady()) rc.depositDirt(rc.getLocation().directionTo(buildLocation));
-                else if(rc.canDigDirt(HQ_loc.directionTo(rc.getLocation())) && rc.isReady()) rc.digDirt(HQ_loc.directionTo(rc.getLocation()));
-                else;
+            if(rc.getLocation().equals(buildLocation) || rc.getLocation().isAdjacentTo(buildLocation)){
+                if(rc.canDepositDirt(rc.getLocation().directionTo(buildLocation)) && rc.isReady()){
+                    rc.depositDirt(rc.getLocation().directionTo(buildLocation));
+                } 
+                else {
+                    int dx = HQ_loc.x - rc.getLocation().x;
+                    int dy = HQ_loc.y - rc.getLocation().y;
+                    int min_x = 100;
+                    int max_x = 0;
+                    int min_y = 100;
+                    int max_y = 0;
+                    for (MapLocation wl : wallLocation){
+                        if (wl.x < min_x)
+                            min_x = wl.x;
+                        if (wl.x > max_x)
+                            max_x = wl.x;                        
+                        if (wl.y < min_y)
+                            min_y = wl.y;                        
+                        if (wl.y > max_y)
+                            max_y = wl.y;
+                    }
+                    
+                    for (Direction dir : directions){
+                        MapLocation dig_location = rc.getLocation().add(dir);
+                        if (dig_location.x >= min_x && dig_location.x <= max_x && dig_location.y >= min_y && dig_location.y <= max_y){
+                            continue;
+                        }
+                        if(rc.canDigDirt(dir) && rc.isReady()) {
+                            rc.digDirt(dir);
+                            break;
+                        }
+                    }
+                }
             }
             else {
                 moveToLocationUsingBugPathing(buildLocation);
@@ -722,11 +751,7 @@ public strictfp class RobotPlayer {
         return returnLoc;
     }
 
-    static void runDeliveryDrone() throws GameActionException {
-        updateMapDiscovered();
-        updateMapGoalLocation();
-        // updateMapSoupDeposits();
-        updateMapRobots();
+    static void tryDefaultDroneMission() throws GameActionException{
         if(HQ_loc != null && wallLocSet) {
             setWallLocations();
             wallLocSet = false;
@@ -751,6 +776,7 @@ public strictfp class RobotPlayer {
                 moveToLocationUsingBugPathing(drop_location);
             else
                 tryMove(randomDirection());
+            return;
         }
         
         if(rc.isCurrentlyHoldingUnit() && allyLandscaperUnitInDrone){
@@ -774,7 +800,7 @@ public strictfp class RobotPlayer {
 
             // Head more intelligently to empty spot
             if (closest_empty_wall != null){
-                moveToLocationUsingBugPathing(closest_empty_wall, true);
+                moveToLocationUsingBugPathing(closest_empty_wall);
             }
         }
         
@@ -785,7 +811,7 @@ public strictfp class RobotPlayer {
                     rc.pickUpUnit(nearby_robots[i].getID());
                     enemyUnitInDrone = true;
                 }
-                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true);
+                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
             }
         }
         boolean wall_full = true;
@@ -824,14 +850,39 @@ public strictfp class RobotPlayer {
                 rc.pickUpUnit(landscaper_to_help.getID());
                 allyLandscaperUnitInDrone = true;
             }
-            else moveToLocationUsingBugPathing(landscaper_to_help.getLocation(), true);
+            else moveToLocationUsingBugPathing(landscaper_to_help.getLocation());
         }
         
         if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
-        else moveToLocationUsingBugPathing(HQ_loc, true);
+        else moveToLocationUsingBugPathing(HQ_loc);        
     }
 
-    
+    static void runDeliveryDrone() throws GameActionException {
+        readBlockChain();
+        Mission current_mission = new Mission();
+        if (active_missions.size() > 0){
+            current_mission = active_missions.get(0);
+        }
+        else{
+            current_mission.mission_type = MissionType.DRONE_DEFAULT;
+        }
+
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+
+        switch(current_mission.mission_type){
+            case SCOUT:
+                tryScoutMission(current_mission);
+                break;
+            case DRONE_DEFAULT:
+            default:
+                tryDefaultDroneMission();
+                break;
+        }
+        tryBlockchain();
+    }
     
     static void runNetGun() throws GameActionException {
 
@@ -1019,18 +1070,17 @@ public strictfp class RobotPlayer {
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location) throws GameActionException{
-        moveToLocationUsingBugPathing(location, false);
+        moveToLocationUsingBugPathing(location, rc.getType().canFly());
     }
 
-
-    static void moveToLocationUsingBugPathing(MapLocation location, boolean ignoreElevation) throws GameActionException{
+    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns) throws GameActionException{
         if (!goal_location.equals(location))
         {
             goal_location = location;
             visited.clear();
         }
-        PathResult path_result_left = bugPathPlan(location,true, ignoreElevation);
-        PathResult path_result_right = bugPathPlan(location,false, ignoreElevation);
+        PathResult path_result_left = bugPathPlan(location,true);
+        PathResult path_result_right = bugPathPlan(location,false);
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
@@ -1055,12 +1105,25 @@ public strictfp class RobotPlayer {
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
-        return bugPathPlan(goal, turn_left, false);
+        return bugPathPlan(goal, turn_left, rc.getType().canFly());
     }
-    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean ignoreElevation) throws GameActionException {
+
+    static boolean outOfEnemyNetGunRange(MapLocation location){
+        RobotInfo[] enemy_robots_in_range = rc.senseNearbyRobots(location, GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED, rc.getTeam().opponent());
+        for (RobotInfo ri : enemy_robots_in_range){
+            if (ri.getType() == RobotType.HQ || ri.getType() == RobotType.NET_GUN){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
         HashSet<MapLocation> visited_plan = new HashSet<MapLocation>();
+
+        boolean ignoreElevation = rc.getType().canFly();
 
         visited_plan.add(current_location);
 
@@ -1074,10 +1137,10 @@ public strictfp class RobotPlayer {
                 MapLocation destination = current_location.add(dir);
                 if (onTheMap(destination) && (!rc.canSenseLocation(destination) || (!rc.isLocationOccupied(destination) &&
                     (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
-                    !visited.contains(destination) && !visited_plan.contains(destination)))){
+                    !visited.contains(destination) && !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0)))){
                     current_location = destination;
                     visited_plan.add(current_location);
-                    //rc.setIndicatorDot(current_location,0,255,0);
+                    // rc.setIndicatorDot(current_location,255,0,0);
                     if (first_dir == Direction.CENTER)
                         first_dir = dir;
                     num_steps++;
@@ -1123,7 +1186,7 @@ public strictfp class RobotPlayer {
      */
     static boolean tryMove(Direction dir) throws GameActionException {
         // System.out.println("I am trying to move " + dir + "; " + rc.isReady() + " " + rc.getCooldownTurns() + " " + rc.canMove(dir));
-        if (rc.isReady() && rc.canMove(dir)) {
+        if (rc.isReady() && rc.canMove(dir) && ((rc.canSenseLocation(rc.getLocation().add(dir)) && !rc.senseFlooding(rc.getLocation().add(dir))) || rc.getType().canFly())){
             rc.move(dir);
             last_move_direction = dir;
             return true;
@@ -1579,6 +1642,33 @@ public strictfp class RobotPlayer {
         return report_bits;
     }
 
+    static boolean addMissionInList(Mission mission, ArrayList<RobotStatus> robots){
+        boolean found = false;
+        for (RobotStatus rs : robots){
+            for (int id : mission.robot_ids){
+                if (rs.robot_id == id){
+                    rs.missions.clear();
+                    rs.missions.add(mission);     
+                    found = true;                       
+                }                                        
+            }  
+        } 
+        return found;
+    }
+
+    static void addAllToMission(ArrayList<Mission> missions) {
+        for (Mission mission : missions){
+            if (addMissionInList(mission, miners)) continue;
+            if (addMissionInList(mission, drones)) continue;
+            if (addMissionInList(mission, landscapers)) continue;
+            if (addMissionInList(mission, refineries)) continue;
+            if (addMissionInList(mission, vaporators)) continue;
+            if (addMissionInList(mission, design_schools)) continue;
+            if (addMissionInList(mission, fulfillment_centers)) continue;
+            if (addMissionInList(mission, net_guns)) continue;
+        }
+    }
+
     static void tryBlockchain() throws GameActionException {
         if (rc.getRoundNum() == 0)
             return;
@@ -1593,6 +1683,8 @@ public strictfp class RobotPlayer {
 
             Mission mission = new Mission();
 
+            ArrayList<Mission> mission_queue_message = new ArrayList<Mission>();
+
             while(i < mission_queue.size()){
                 mission = mission_queue.get(i);
 
@@ -1602,17 +1694,11 @@ public strictfp class RobotPlayer {
                     addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
                     addPasswordAndHashToMessage(message);
 
-                    if (rc.canSubmitTransaction(message, 1))
+                    if (rc.canSubmitTransaction(message, 1)){
                         rc.submitTransaction(message, 1);
-                        for (RobotStatus rs : miners){
-                            for (int id : mission.robot_ids){
-                                if (rs.robot_id == id){
-                                    rs.missions.clear();
-                                    rs.missions.add(mission);                            
-                                }
-                            }                        
-                        }
-
+                        addAllToMission(mission_queue_message);
+                        mission_queue_message.clear();
+                    }
                     remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
                     message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
                     continue;
@@ -1628,6 +1714,7 @@ public strictfp class RobotPlayer {
                     remaining_bits = addToMessage(message, remaining_bits, mission.distance, Label.DISTANCE.ordinal(), 7);
                 }
                 i++;
+                mission_queue_message.add(mission);
             }
 
             addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
@@ -1635,14 +1722,8 @@ public strictfp class RobotPlayer {
 
             if (rc.canSubmitTransaction(message, 1)){
                 rc.submitTransaction(message, 1);
-                for (RobotStatus rs : miners){
-                    for (int id : mission.robot_ids){
-                        if (rs.robot_id == id){
-                            rs.missions.clear();
-                            rs.missions.add(mission);                            
-                        }
-                    }                        
-                }
+                addAllToMission(mission_queue_message);
+                mission_queue_message.clear();
             }
         }
         else{

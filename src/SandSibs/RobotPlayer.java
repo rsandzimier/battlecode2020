@@ -279,7 +279,7 @@ public strictfp class RobotPlayer {
                     }
                 }
             } 
-            if (fulfillment_centers.size() == 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
+            if (fulfillment_centers.size() == 0 && design_schools.size() != 0 && !needsScouting[0] && !needsScouting[1] && !needsScouting[2]){
                 Mission new_mission = null;
                 for (RobotStatus rs : miners){
                     if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD &&
@@ -287,14 +287,32 @@ public strictfp class RobotPlayer {
                         new_mission = null;
                         break;
                     }
-                    if (new_mission == null && rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE){
+                    System.out.println("START");
+                    if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
+                        System.out.println("TEST 1");
+
+                        MapLocation loc = chooseFulfillmentCenterLocation(design_schools.get(0).location);
+                        System.out.println("TEST 2");
+
+                        if (loc == null) {
+                            System.out.println("TEST 3a");
+
+                            continue;
+                        }
+                        System.out.println("TEST 3b");
+
                         new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD;
-                        new_mission.location = HQ_loc;
+                        System.out.println(design_schools.get(0).location);
+                        System.out.println(design_schools.get(0).robot_id);
+
+                        new_mission.location = loc;
                         new_mission.robot_ids.add(rs.robot_id);
                         new_mission.robot_type = RobotType.FULFILLMENT_CENTER;
-                        new_mission.distance = 1;
+                        new_mission.distance = 0;
                     }
+                    System.out.println("END");
+
                 }
                 if (new_mission != null)
                     mission_queue.add(new_mission);
@@ -321,10 +339,10 @@ public strictfp class RobotPlayer {
                         }
                         new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD;
-                        new_mission.location = HQ_loc;
+                        new_mission.location = chooseDesignSchoolLocation();
                         new_mission.robot_ids.add(rs.robot_id);
                         new_mission.robot_type = RobotType.DESIGN_SCHOOL;
-                        new_mission.distance = 1;
+                        new_mission.distance = 0;
                     }
                 }
                 if (new_mission != null)
@@ -394,11 +412,13 @@ public strictfp class RobotPlayer {
                     visited.clear();
                     return;
                 }
+                else if (rc.canMove(dir) && rc.getLocation().add(dir).equals(mission.location)){
+                    visited.clear();
+                    return;
+                }
             }
 
         }
-        // If can build, but can't afford it, don't move
-
         moveToLocationUsingBugPathing(mission.location);
     }
 
@@ -595,7 +615,7 @@ public strictfp class RobotPlayer {
         return bounds;  
     }
 
-    static Direction[] getExitPriority() throws GameActionException{
+    static ArrayList<Direction> getExitPriority() throws GameActionException{
         MapLocation[] base_bounds = getBaseBounds();
 
         ArrayList<Direction> exit_directions = new ArrayList<Direction>();
@@ -614,16 +634,16 @@ public strictfp class RobotPlayer {
                 int dist = 0;
                 switch(dir){
                     case NORTH:
-                        dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
-                        break;
-                    case WEST:
                         dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
                         break;
-                    case SOUTH:
+                    case WEST:
                         dist = base_bounds[0].x;   
                         break;
-                    case EAST:
+                    case SOUTH:
                         dist = base_bounds[0].y;   
+                        break;
+                    case EAST:
+                        dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
                         break;
                 }
                 if (dist > longest_dist){
@@ -631,32 +651,55 @@ public strictfp class RobotPlayer {
                     longest_index = i;
                 }
             }
+            if (longest_index < 0)
+                break;
             if (longest_dist > 5){
-                exit_priority.add(exit_directions.get(i));
+                exit_priority.add(exit_directions.get(longest_index));
             }
-            exit_directions.remove(i);
+            exit_directions.remove(longest_index);
         }
 
         return exit_priority;
     }
 
+    static boolean canBuildDesignSchoolAtLocation(MapLocation location) throws GameActionException{
+        int elevation_HQ = 0;
+        if (rc.canSenseLocation(HQ_loc)){
+            elevation_HQ = rc.senseElevation(HQ_loc);
+        }
+        // Need to add condition for enemy at location
+        return rc.canSenseLocation(location) && Math.abs(rc.senseElevation(location) - elevation_HQ) <= 3;
+    }
+
     static MapLocation chooseDesignSchoolLocation() throws GameActionException{
         MapLocation[] base_bounds = getBaseBounds();
-        Direction[] exit_priority = getExitPriority();
+        ArrayList<Direction> exit_priority = getExitPriority();
 
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
 
         if (HQ_loc.equals(center)){
-            Direction exit1 = exit_priority[0];
-            Direction exit2 = exit_priority[1];
+            Direction exit1 = exit_priority.get(0);
+            Direction exit2 = exit_priority.get(1);
             if (exit1 == exit2.opposite()){
-                exit2 = exit_priority[2];
+                exit2 = exit_priority.get(2);
             }
-            int elevation_HQ = 0;
-            if (rc.canSenseLocation(HQ_loc)){
-                elevation_HQ = rc.senseElevation(HQ_loc)
-            }
-            
+
+            MapLocation candidate_location = center.add(exit1).add(exit2);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit1).add(exit2.opposite());
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit1.opposite()).add(exit2);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit1.opposite()).add(exit2.opposite());
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit2);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit2.opposite());
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;            
+            candidate_location = center.add(exit1);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = center.add(exit1.opposite());
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;   
         }
 
         // if centered
@@ -702,10 +745,206 @@ public strictfp class RobotPlayer {
         // }
         // // System.out.println("End choose design school");
 
-        return best_location;
+        return null;
+    }
+
+    static int getBaseTileIndex(MapLocation location) throws GameActionException{
+        //       NORTH
+        //       0 1 2
+        // WEST  3 4 5  EAST
+        //       6 7 8
+        //       SOUTH
+        // -1 if outside base
+
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+        if (!location.isWithinDistanceSquared(center, 2)) return -1;
+        switch(center.directionTo(location)){
+            case NORTHWEST: return 0;
+            case NORTH: return 1;
+            case NORTHEAST: return 2;
+            case WEST: return 3;
+            case CENTER: return 4;
+            case EAST: return 5;
+            case SOUTHWEST: return 6;
+            case SOUTH: return 7;
+            case SOUTHEAST: return 8;
+            default: return -1;
+        }
+    }
+
+    static MapLocation getLocationFromBaseTileIndex(int index) throws GameActionException{
+        if (index < 0 || index > 8) return null;
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+        Direction direction = Direction.CENTER;
+        switch(index){
+            case 0: direction = Direction.NORTHWEST; break;
+            case 1: direction = Direction.NORTH; break;
+            case 2: direction = Direction.NORTHEAST; break;
+            case 3: direction = Direction.WEST; break;
+            case 4: direction = Direction.CENTER; break;
+            case 5: direction = Direction.EAST; break;
+            case 6: direction = Direction.SOUTHWEST; break;
+            case 7: direction = Direction.SOUTH; break;
+            case 8: direction = Direction.SOUTHEAST; break;
+            default: break;
+        }
+        return center.add(direction);
+    }
+
+    static int rotateBaseTileIndex(int index, Direction direction){
+        // Rotate base so that "direction" is the new North and output new index
+        if (index < 0 || index > 8) return -1;
+        int num_rotations = 0;
+        switch(direction){
+            case NORTH: num_rotations = 0; break;
+            case NORTHEAST: num_rotations = 1; break;
+            case EAST: num_rotations = 2; break;
+            case SOUTHEAST: num_rotations = 3; break;
+            case SOUTH: num_rotations = 4; break;
+            case SOUTHWEST: num_rotations = 5; break;
+            case WEST: num_rotations = 6; break;
+            case NORTHWEST: num_rotations = 7; break;
+            default: return -1;
+        }
+        for (int i = 0; i != num_rotations; i++){
+            index = rotateBaseTileIndexCounterClockwiseOnce(index);
+        }
+        return index;
+    }
+
+    static int rotateBaseTileIndexCounterClockwiseOnce(int index){
+        // Rotate base clockwise by one step (45 degrees) and return new index
+        if (index < 0 || index > 8) return -1;
+        switch(index){
+            case 0: return 3;
+            case 1: return 0;
+            case 2: return 1;
+            case 3: return 6;
+            case 4: return 4;
+            case 5: return 2;
+            case 6: return 7;
+            case 7: return 8;
+            case 8: return 5;
+        }
+        return -1;
+    }
+
+    static boolean canBuildFulfillmentCenterAtLocation(MapLocation location) throws GameActionException{
+        // Need to add condition
+        return true;
+    }
+
+    static Direction mirrorDirectionAboutNorth(Direction direction){
+        switch(direction){
+            case NORTH: return Direction.NORTH;
+            case NORTHEAST: return Direction.NORTHWEST;
+            case EAST: return Direction.WEST;
+            case SOUTHEAST: return Direction.SOUTHWEST;
+            case SOUTH: return Direction.SOUTH;
+            case SOUTHWEST: return Direction.SOUTHEAST;
+            case WEST: return Direction.EAST;
+            case NORTHWEST: return Direction.NORTHEAST;
+            case CENTER: return Direction.CENTER;
+        }
+        return null;
     }
 
     static MapLocation chooseFulfillmentCenterLocation(MapLocation design_school_location) throws GameActionException{
+        if (design_school_location == null) return null;
+        MapLocation[] base_bounds = getBaseBounds();
+        ArrayList<Direction> exit_priority = getExitPriority();
+
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+
+        int design_school_base_index = getBaseTileIndex(design_school_location);
+
+        MapLocation candidate_location = center;
+
+        System.out.println("Exit Priority");
+        for (Direction ep: exit_priority)
+            System.out.println(ep);
+
+        if (HQ_loc.equals(center)){
+            for (Direction dir : exit_priority){
+                System.out.println("Direction " + dir);
+                int design_school_rotated_base_index = rotateBaseTileIndex(design_school_base_index, dir);
+                System.out.println("Base index " + design_school_base_index + " rotated " + design_school_rotated_base_index);
+                switch(design_school_rotated_base_index){
+                    case 0:
+                    case 3:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 2:
+                    case 5:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        System.out.println("index " + rotateBaseTileIndex(0, dir.opposite()) + " location " + candidate_location);
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 6:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 8:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    default: 
+                        break;
+                }
+
+            }
+            for (Direction dir : exit_priority){
+                System.out.println("Direction " + dir);
+                int design_school_rotated_base_index = rotateBaseTileIndex(design_school_base_index, dir);
+                System.out.println("Base index " + design_school_base_index + " rotated " + design_school_rotated_base_index);
+                switch(design_school_rotated_base_index){
+                    case 0:
+                    case 3:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 2:
+                    case 5:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 6:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 7:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;                    
+                    case 8:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    default: 
+                        break;
+                }
+            }    
+        }
+
         // 0 1 2
         // 3 4 5
         // 6 7 8
@@ -763,7 +1002,7 @@ public strictfp class RobotPlayer {
 
         // // System.out.println("End choose fulfillment center");
 
-        return best_location;
+        return null;
     }
 
     static boolean isInsideBase(MapLocation[] base_bounds, MapLocation loc){
@@ -1266,6 +1505,19 @@ public strictfp class RobotPlayer {
         updateSquare(goal_location.x, goal_location.y);
     }
 
+    static void addRobotToList(ArrayList<RobotStatus> robots, int id, MapLocation location){
+        if (location == null){
+            addRobotToList(robots, id);
+            return;
+        }
+        if (!robotListContainsID(robots, id)){
+            RobotStatus rs = new RobotStatus(id);
+            rs.location = location;
+            System.out.println("Adding robot with ID: " + id + " at location: " + location);
+            robots.add(rs);
+        }
+    }
+
     static void addRobotToList(ArrayList<RobotStatus> robots, int id){
         if (!robotListContainsID(robots, id)){
             robots.add(new RobotStatus(id));
@@ -1287,6 +1539,7 @@ public strictfp class RobotPlayer {
         enemy_drones.clear();
         for (RobotInfo nr : nearby_robots){
             if (robot_type == RobotType.HQ && rc.getTeam() == nr.getTeam() ){
+                System.out.println("Found robot with ID: " + nr.getID());
                 int id = nr.getID();
                 switch(nr.getType()){
                     case MINER:
@@ -1299,19 +1552,19 @@ public strictfp class RobotPlayer {
                         addRobotToList(drones, id);
                         break;
                     case REFINERY:
-                        addRobotToList(refineries, id);
+                        addRobotToList(refineries, id, nr.getLocation());
                         break;
                     case VAPORATOR:
-                        addRobotToList(vaporators, id);
+                        addRobotToList(vaporators, id, nr.getLocation());
                         break;
                     case DESIGN_SCHOOL:
-                        addRobotToList(design_schools, id);
+                        addRobotToList(design_schools, id, nr.getLocation());
                         break;
                     case FULFILLMENT_CENTER:
-                        addRobotToList(fulfillment_centers, id);
+                        addRobotToList(fulfillment_centers, id, nr.getLocation());
                         break;
                     case NET_GUN:
-                        addRobotToList(net_guns, id);
+                        addRobotToList(net_guns, id, nr.getLocation());
                         break;
                     default:
                         break;
@@ -1634,16 +1887,16 @@ public strictfp class RobotPlayer {
                     addRobotToList(miners, report.robot_id);
                     break;
                 case REFINERY: 
-                    addRobotToList(refineries, report.robot_id);
+                    addRobotToList(refineries, report.robot_id, report.location);
                     break;
                 case VAPORATOR:
-                    addRobotToList(vaporators, report.robot_id);
+                    addRobotToList(vaporators, report.robot_id, report.location);
                     break;
                 case DESIGN_SCHOOL:
-                    addRobotToList(design_schools, report.robot_id);
+                    addRobotToList(design_schools, report.robot_id, report.location);
                     break;
                 case FULFILLMENT_CENTER:
-                    addRobotToList(fulfillment_centers, report.robot_id);
+                    addRobotToList(fulfillment_centers, report.robot_id, report.location);
                     break;
                 case LANDSCAPER:  
                     addRobotToList(landscapers, report.robot_id);
@@ -1652,7 +1905,7 @@ public strictfp class RobotPlayer {
                     addRobotToList(drones, report.robot_id);
                     break;
                 case NET_GUN:
-                    addRobotToList(net_guns, report.robot_id);
+                    addRobotToList(net_guns, report.robot_id, report.location);
                     break;   
             }
         }

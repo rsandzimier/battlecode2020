@@ -287,7 +287,7 @@ public strictfp class RobotPlayer {
                         new_mission = null;
                         break;
                     }
-                    
+
                     System.out.println("START");
                     if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
                         System.out.println("TEST 1");
@@ -361,6 +361,10 @@ public strictfp class RobotPlayer {
         // If can build, build
         // Otherwise, path toward
         MapLocation current_location = rc.getLocation();
+        // if (current_location.equals(mission.location) && mission.distance == 0){
+        //     tryMove();
+        //     return;
+        // }
         for (Direction dir : directions){
             if (current_location.add(dir).isWithinDistanceSquared(mission.location, mission.distance*mission.distance)){
                 int build_cost = 0;

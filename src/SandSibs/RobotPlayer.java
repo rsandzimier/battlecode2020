@@ -1606,6 +1606,40 @@ public strictfp class RobotPlayer {
         
         return returnLoc;
     }
+    
+    static void attackDroneMission() throws GameActionException {
+        int attackDroneCount = 1;
+
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() == rc.getTeam() && nearby_robots[i].getType() == RobotType.DELIVERY_DRONE) attackDroneCount++;
+            if(nearby_robots[i].getTeam() != rc.getTeam() && nearby_robots[i].getType() == RobotType.HQ) enemy_HQ_loc = nearby_robots[i].getLocation();
+        }
+
+        if(enemy_HQ_loc != null){
+            if(attackDroneCount >= 8 && rc.canSenseLocation(enemy_HQ_loc)) droneRush(nearby_robots);
+            else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
+            else moveToLocationUsingBugPathing(enemy_HQ_loc);
+        }
+        else {
+            if(tryMove(Direction.EAST));
+            else tryMove(Direction.WEST);
+        }
+    }
+
+    static void droneRush(RobotInfo[] nearbyRobots) throws GameActionException {
+        RobotInfo whoToAttack = null;
+        for(int i=0; i < nearbyRobots.length; i++){
+            if(nearbyRobots[i].getTeam() != rc.getTeam() && nearbyRobots[i].getType() == RobotType.LANDSCAPER){
+                whoToAttack = nearbyRobots[i];
+                break;
+            }
+        }
+
+        if(rc.getLocation().isAdjacentTo(whoToAttack.getLocation()) && rc.isReady() && rc.canPickUpUnit(whoToAttack.getID())) rc.pickUpUnit(whoToAttack.getID());
+        else if(rc.canMove(rc.getLocation().directionTo(whoToAttack.getLocation())) && rc.isReady()) rc.move(rc.getLocation().directionTo(whoToAttack.getLocation()));
+        else tryMove(randomDirection());
+    }
 
     static void tryDefaultDroneMission() throws GameActionException{
         // If inside base and no landscaper available, go outside
@@ -1732,12 +1766,18 @@ public strictfp class RobotPlayer {
             }
         }
         
-        if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
-        else moveToLocationUsingBugPathing(HQ_loc);
+        if(rc.isReady()) attackDroneMission();
     }
 
     static void runDeliveryDrone() throws GameActionException {
         readBlockChain();
+        
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+        updateDropoffLocations();
+        
         Mission current_mission = new Mission();
         if (active_missions.size() > 0){
             current_mission = active_missions.get(0);
@@ -1745,13 +1785,6 @@ public strictfp class RobotPlayer {
         else{
             current_mission.mission_type = MissionType.DRONE_DEFAULT;
         }
-
-        updateMapDiscovered();
-        updateMapGoalLocation();
-        // updateMapSoupDeposits();
-        updateMapRobots();
-        updateDropoffLocations();
-
 
         switch(current_mission.mission_type){
             case SCOUT:

@@ -190,10 +190,10 @@ public strictfp class RobotPlayer {
         System.out.println("I'm a " + rc.getType() + " and I just got created!");
 
         switch (rc.getType()) {
-            case DESIGN_SCHOOL:
-                addRobotToList(design_schools, rc.getID(), rc.getLocation());
+            case DESIGN_SCHOOL:      
+                addRobotToList(design_schools, rc.getID(), rc.getLocation());      
                 break;
-            case FULFILLMENT_CENTER:
+            case FULFILLMENT_CENTER: 
                 addRobotToList(fulfillment_centers, rc.getID(), rc.getLocation());
                 break;
             default: break;
@@ -343,13 +343,18 @@ public strictfp class RobotPlayer {
             robot_type = RobotType.VAPORATOR;
         }
         if (location == null || robot_type == null) {
+            rc.disintegrate(); // TO DO: Make sure this isn't going to screw us somehow
             return;
         }
 
         MapLocation current_location = rc.getLocation();
 
-        if (current_location.equals(location)){ // TO DO: Improve this
-            tryMove();
+        if (current_location.equals(location)){
+            for (Direction dir : directions){
+                if (isInsideBase(current_location.add(dir)))
+                    tryMove(dir);
+            }
+            // TO DO: Need to do something if stuck
             visited.clear();
             return;
         }
@@ -385,7 +390,8 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        moveToLocationUsingBugPathing(location);
+        MapLocation[] base_bounds = getBaseBounds();
+        moveToLocationUsingBugPathing(location, base_bounds);
     }
 
     static void tryBuildMission(Mission mission) throws GameActionException {
@@ -647,7 +653,7 @@ public strictfp class RobotPlayer {
             min_y -= max_y - map_height + 1;
             max_y = map_height - 1;
         }
-        MapLocation[] bounds = {new MapLocation(min_x,min_y), new MapLocation(max_x, max_y)};
+        MapLocation[] bounds = {new MapLocation(min_x,min_y), new MapLocation(max_x, max_y)};      
         return bounds;
     }
 
@@ -670,13 +676,13 @@ public strictfp class RobotPlayer {
                 int dist = 0;
                 switch(dir){
                     case NORTH:
-                        dist = rc.getMapHeight() - 1 - base_bounds[1].y;
+                        dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
                         break;
                     case WEST:
-                        dist = base_bounds[0].x;
+                        dist = base_bounds[0].x;   
                         break;
                     case SOUTH:
-                        dist = base_bounds[0].y;
+                        dist = base_bounds[0].y;   
                         break;
                     case EAST:
                         dist = rc.getMapWidth() - 1 - base_bounds[1].x;
@@ -748,7 +754,6 @@ public strictfp class RobotPlayer {
                         // Ensure at least one is next to HQ
 
         // For all squares adjacent to DS, check if there is an adjacent square to FC
-        //
     }
 
     static MapLocation chooseDesignSchoolLocation() throws GameActionException{
@@ -774,7 +779,7 @@ public strictfp class RobotPlayer {
             candidate_location = center.add(exit2);
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
             candidate_location = center.add(exit2.opposite());
-            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;            
             candidate_location = center.add(exit1);
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
             candidate_location = center.add(exit1.opposite());
@@ -840,15 +845,52 @@ public strictfp class RobotPlayer {
         MapLocation[] base_bounds = getBaseBounds();
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
 
-        // TO DO: Better choice of vaporator order
-
-        for (Direction dir : directions){
+        ArrayList<MapLocation> candidate_locations = new ArrayList<MapLocation>();
+        System.out.println("Choose vaporator location");
+        for (Direction dir : Direction.allDirections()){
             MapLocation candidate_location = center.add(dir);
-            if (!candidate_location.equals(design_schools.get(0)) && !candidate_location.equals(fulfillment_centers.get(0)) &&
-                !candidate_location.equals(landscaper_dropoff) && !candidate_location.equals(drone_dropoff) && !anyRobotsInListAtLocation(vaporators, candidate_location)){
-                return candidate_location;
+            if (!candidate_location.equals(HQ_loc) && !candidate_location.equals(design_schools.get(0).location) &&
+                    !candidate_location.equals(fulfillment_centers.get(0).location) && !candidate_location.equals(landscaper_dropoff) &&
+                    !candidate_location.equals(drone_dropoff) && !anyRobotsInListAtLocation(vaporators, candidate_location)){
+                candidate_locations.add(candidate_location);
+                System.out.println("Candidate location: " + candidate_location);
+
             }
         }
+        boolean last_vaporator_found = false;
+        for (MapLocation loc : candidate_locations){
+            System.out.println("Test Candidate location: " + loc);
+            ArrayList<MapLocation> adjacent_candidates = new ArrayList<MapLocation>();
+            boolean would_isolate = false;
+            for (MapLocation loc2 : candidate_locations){
+                if (loc2.isAdjacentTo(loc) && !loc2.equals(loc)){
+                    for (MapLocation loc3 : adjacent_candidates){
+                        if (!loc2.isAdjacentTo(loc3)){
+                            would_isolate = true;
+                            System.out.println("Would isolate " + loc2 + " from " + loc3);
+                            break;
+                        }
+                    }
+                    if (would_isolate){
+                        break;
+                    }
+                    adjacent_candidates.add(loc2);
+                }
+            }
+            if (would_isolate)
+                continue;
+
+            if (candidate_locations.size() != 1 && !last_vaporator_found && (loc.isAdjacentTo(drone_dropoff) || loc.isAdjacentTo(landscaper_dropoff))){
+                last_vaporator_found = true;
+                System.out.println("Near drop off");
+                continue;
+            }
+            System.out.println("Choose: " + loc);
+
+            return loc;
+        }
+        System.out.println("No candidate found");
+
         return null;
     }
 
@@ -1030,14 +1072,14 @@ public strictfp class RobotPlayer {
                         if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
                         candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
                         if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
-                        break;
+                        break;                    
                     case 8:
                         candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
                         if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
                         candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
                         if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
                         break;
-                    default:
+                    default: 
                         break;
                 }
             }
@@ -1093,7 +1135,7 @@ public strictfp class RobotPlayer {
         //             if (score > best_score){
         //                 best_score = score;
         //                 best_location = loc;
-        //             }
+        //             }                
         //         }
         //     }
         // }
@@ -1177,13 +1219,13 @@ public strictfp class RobotPlayer {
     //         int dist = 0;
     //         switch(i){
     //             case 0: // Right
-    //                 dist = rc.getMapWidth() - 1 - base_bounds[1].x;
+    //                 dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
     //                 break;
     //             case 1: // Up
-    //                 dist = rc.getMapHeight() - 1 - base_bounds[1].y;
+    //                 dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
     //                 break;
     //             case 2: // Left
-    //                 dist = base_bounds[0].x;
+    //                 dist = base_bounds[0].x;   
     //                 break;
     //             case 3: // Down
     //                 dist = base_bounds[0].y;
@@ -1329,7 +1371,7 @@ public strictfp class RobotPlayer {
                 return;
             }
 
-            if (count_base_and_walls - count_base >= 2 && vaporators.size() < 2)
+            if (count_base_and_walls - count_base >= 2 && vaporators.size() < 4)
                 return;
 
             if (robot == null && landscaper_dropoff != null && tryBuild(RobotType.LANDSCAPER, rc.getLocation().directionTo(landscaper_dropoff)))
@@ -1346,7 +1388,7 @@ public strictfp class RobotPlayer {
         updateDropoffLocations();
 
         if (rc.getTeamSoup() >= 350  || rc.getRoundNum() > 800){
-            if (vaporators.size() < 2 && drones.size() > 0) // TO DO: Finalize this
+            if (vaporators.size() < 4 && drones.size() > 0) // TO DO: Finalize this
                 return;
             RobotInfo[] nearby_robots = rc.senseNearbyRobots();
 
@@ -1384,7 +1426,7 @@ public strictfp class RobotPlayer {
             if (loc.isAdjacentTo(drone_dropoff)){
                 exit = loc;
             }
-        }
+        } 
 
         if (exit == null) return new ArrayList<MapLocation>();
         return getWallLocationsToExit(rc.getLocation(), exit);
@@ -1414,7 +1456,7 @@ public strictfp class RobotPlayer {
 
         clockwise.add(start);
         MapLocation loc = start;
-        while(!loc.equals(exit)){
+        while(!loc.equals(exit)){ 
             // System.out.println("Clockwise");
             // System.out.println("Start: " + start);
             // System.out.println("Loc: " + loc);
@@ -1435,7 +1477,7 @@ public strictfp class RobotPlayer {
         // Counterclockwise
         direction = inward;
         while(!(isOnWall(base_bounds, start.add(direction)) && (direction.getDeltaX() == 0 || direction.getDeltaY() == 0))){
-            direction = direction.rotateRight();
+            direction = direction.rotateRight();       
         }
 
         counterclockwise.add(start);
@@ -1446,7 +1488,7 @@ public strictfp class RobotPlayer {
             // System.out.println("Loc: " + loc);
             // System.out.println("Direction: " + direction);
             // System.out.println("Exit: " + exit);
-            // System.out.println("End: " + loc.equals(exit));
+            // System.out.println("End: " + loc.equals(exit)); 
             MapLocation new_loc = loc.add(direction);
             if (isOnWall(base_bounds, new_loc)){
                 loc = new_loc;
@@ -1456,7 +1498,7 @@ public strictfp class RobotPlayer {
                 direction = direction.rotateLeft().rotateLeft();
             }
         }
-
+        
         if (clockwise.size() < counterclockwise.size())
             return clockwise;
         else
@@ -1561,7 +1603,6 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            
             return;
         }
         
@@ -1609,22 +1650,19 @@ public strictfp class RobotPlayer {
     
     static void attackDroneMission() throws GameActionException {
         int attackDroneCount = 1;
-
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         for(int i=0; i < nearby_robots.length; i++){
             if(nearby_robots[i].getTeam() == rc.getTeam() && nearby_robots[i].getType() == RobotType.DELIVERY_DRONE) attackDroneCount++;
-            if(nearby_robots[i].getTeam() != rc.getTeam() && nearby_robots[i].getType() == RobotType.HQ) enemy_HQ_loc = nearby_robots[i].getLocation();
+            else if(nearby_robots[i].getTeam() != rc.getTeam() && nearby_robots[i].getType() == RobotType.HQ) enemy_HQ_loc = nearby_robots[i].getLocation();
+            else;
         }
 
         if(enemy_HQ_loc != null){
-            if(attackDroneCount >= 8 && rc.canSenseLocation(enemy_HQ_loc)) droneRush(nearby_robots);
+            if(attackDroneCount >= 4) droneRush(nearby_robots);
             else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
             else moveToLocationUsingBugPathing(enemy_HQ_loc);
         }
-        else {
-            if(tryMove(Direction.EAST));
-            else tryMove(Direction.WEST);
-        }
+        else tryMove(Direction.EAST);
     }
 
     static void droneRush(RobotInfo[] nearbyRobots) throws GameActionException {
@@ -1785,6 +1823,12 @@ public strictfp class RobotPlayer {
         else{
             current_mission.mission_type = MissionType.DRONE_DEFAULT;
         }
+
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+        updateDropoffLocations();
 
         switch(current_mission.mission_type){
             case SCOUT:
@@ -1992,21 +2036,25 @@ public strictfp class RobotPlayer {
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location) throws GameActionException{
-        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly());
+        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),null);
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns) throws GameActionException{
-        moveToLocationUsingBugPathing(location, avoid_net_guns, rc.getType().canFly());
+        moveToLocationUsingBugPathing(location, avoid_net_guns, rc.getType().canFly(),null);
     }
 
-    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units) throws GameActionException{
+    static void moveToLocationUsingBugPathing(MapLocation location, MapLocation[] base_bounds) throws GameActionException{
+        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),base_bounds);
+    }
+
+    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException{
         if (!goal_location.equals(location))
         {
             goal_location = location;
             visited.clear();
         }
-        PathResult path_result_left = bugPathPlan(location,true, avoid_net_guns, allow_picking_up_units);
-        PathResult path_result_right = bugPathPlan(location,false, avoid_net_guns, allow_picking_up_units);
+        PathResult path_result_left = bugPathPlan(location,true, avoid_net_guns, allow_picking_up_units, base_bounds);
+        PathResult path_result_right = bugPathPlan(location,false, avoid_net_guns, allow_picking_up_units, base_bounds);
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
@@ -2136,11 +2184,11 @@ public strictfp class RobotPlayer {
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
-        return bugPathPlan(goal, turn_left, rc.getType().canFly(), rc.getType().canFly());
+        return bugPathPlan(goal, turn_left, rc.getType().canFly(), rc.getType().canFly(),null);
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns) throws GameActionException {
-        return bugPathPlan(goal, turn_left, avoid_net_guns, rc.getType().canFly());
+        return bugPathPlan(goal, turn_left, avoid_net_guns, rc.getType().canFly(),null);
     }
 
     static boolean outOfEnemyNetGunRange(MapLocation location){
@@ -2153,7 +2201,7 @@ public strictfp class RobotPlayer {
         return true;
     }
 
-    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns, boolean allow_picking_up_units) throws GameActionException {
+    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
         HashSet<MapLocation> visited_plan = new HashSet<MapLocation>();
@@ -2174,8 +2222,9 @@ public strictfp class RobotPlayer {
                 if (allow_picking_up_units && rc.canSenseLocation(destination))
                     robot = rc.senseRobotAtLocation(destination);
                 if (onTheMap(destination) && (!rc.canSenseLocation(destination) || ((!rc.isLocationOccupied(destination) || (allow_picking_up_units && robot != null && rc.canPickUpUnit(robot.getID()))) &&
-                    (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
-                    !visited.contains(destination) && !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0)))){
+                        (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
+                        !visited.contains(destination) && !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0))) && 
+                        (base_bounds == null || isInsideBase(base_bounds, destination))){
                     current_location = destination;
                     visited_plan.add(current_location);
                     // rc.setIndicatorDot(current_location,255,0,0);
@@ -2633,7 +2682,7 @@ public strictfp class RobotPlayer {
     }
 
     static int getMissionBits(Mission mission){ // TO DO: Need to update this function
-        int mission_bits = 0;
+        int mission_bits = 0; 
         mission_bits += 5 + 5; // Data Type Tag #bits Mission type #bits
         mission_bits += (5 + 15)*mission.robot_ids.size(); // Robot ID #bits
         mission_bits += 5 + 12; // Location # bits

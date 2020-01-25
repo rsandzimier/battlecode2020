@@ -1697,7 +1697,7 @@ public strictfp class RobotPlayer {
     static void attackDroneMission() throws GameActionException {
             if(turnCount >= 2250) droneRush();
             else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
-            moveToLocationUsingBugPathing(enemy_HQ_loc);
+            else moveToLocationUsingBugPathing(enemy_HQ_loc);
     }
 
     static void droneRush() throws GameActionException {

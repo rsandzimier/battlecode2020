@@ -123,6 +123,7 @@ public strictfp class RobotPlayer {
 
     static MapLocation drone_dropoff = null;
     static MapLocation landscaper_dropoff = null;
+    static int num_vaporators_last = 0;
 
     static Direction last_move_direction = Direction.CENTER;
 
@@ -165,50 +166,59 @@ public strictfp class RobotPlayer {
 
         // This is the RobotController object. You use it to perform actions from this robot,
         // and to get information on its current status.
-        RobotPlayer.rc = rc;
 
-        turnCount = 0;
+        while(true){ // Runs only once unless exception is caught during initialization
+            try {
+                RobotPlayer.rc = rc;
 
-        map_width = rc.getMapWidth();
-        map_height = rc.getMapHeight();
+                turnCount = 0;
 
-        blockchain_read_index = Math.max(rc.getRoundNum()-1,2);
-        blockchain_password = 599 + rc.getTeam().ordinal();
+                map_width = rc.getMapWidth();
+                map_height = rc.getMapHeight();
 
-        possible_symmetries.add(Symmetry.HORIZONTAL);
-        possible_symmetries.add(Symmetry.VERTICAL);
-        possible_symmetries.add(Symmetry.ROTATIONAL);
+                blockchain_read_index = Math.max(rc.getRoundNum()-1,2);
+                blockchain_password = 599 + rc.getTeam().ordinal();
 
-        if (rc.getType() == RobotType.HQ){
-            HQ_loc = rc.getLocation();
-            updateExitPriority();
-            int mirror_x = map_width - HQ_loc.x - 1;
-            int mirror_y = map_height - HQ_loc.y - 1;
-            symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
-            symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
-            symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
-        }
+                possible_symmetries.add(Symmetry.HORIZONTAL);
+                possible_symmetries.add(Symmetry.VERTICAL);
+                possible_symmetries.add(Symmetry.ROTATIONAL);
 
-        System.out.println("I'm a " + rc.getType() + " and I just got created!");
+                if (rc.getType() == RobotType.HQ){
+                    HQ_loc = rc.getLocation();
+                    int mirror_x = map_width - HQ_loc.x - 1;
+                    int mirror_y = map_height - HQ_loc.y - 1;
+                    symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
+                    symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
+                    symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
+                    updateExitPriority();
+                }
 
-        switch (rc.getType()) {
-            case DESIGN_SCHOOL:      
-                addRobotToList(design_schools, rc.getID(), rc.getLocation());      
+                System.out.println("I'm a " + rc.getType() + " and I just got created!");
+
+                switch (rc.getType()) {
+                    case DESIGN_SCHOOL:      
+                        addRobotToList(design_schools, rc.getID(), rc.getLocation());      
+                        break;
+                    case FULFILLMENT_CENTER: 
+                        addRobotToList(fulfillment_centers, rc.getID(), rc.getLocation());  
+                        break;
+                    default: break;
+                }
+
+                for (int i = 0; i != map_width; i++)
+                {
+                    for (int j = 0; j != map_height; j++)
+                    {
+                        map[i][j] = new Square();
+                    }
+                }
                 break;
-            case FULFILLMENT_CENTER: 
-                addRobotToList(fulfillment_centers, rc.getID(), rc.getLocation());
-                break;
-            default: break;
-        }
-
-        for (int i = 0; i != map_width; i++)
-        {
-            for (int j = 0; j != map_height; j++)
-            {
-                map[i][j] = new Square();
+            } catch (Exception e) {
+                System.out.println(rc.getType() + " Exception");
+                e.printStackTrace();
             }
-         }
-
+        }
+        
         while (true) {
             turnCount += 1;
             // Try/catch blocks stop unhandled exceptions, which cause your robot to explode
@@ -244,6 +254,7 @@ public strictfp class RobotPlayer {
     static void runHQ() throws GameActionException {
         readBlockChain();
         updateMapRobots();
+        updateMapSymmetry();
 
         if (enemy_HQ_loc != null && rc.getRoundNum() - last_enemy_HQ_loc_broadcast_turn > 50){ // TO DO: No verification that it actually was broadcast. Also, consider dynamically determining cost to prevent opponent spamming
             Report report = new Report();
@@ -304,7 +315,7 @@ public strictfp class RobotPlayer {
 
             if (miners.size() > 3){
                 Mission new_mission = null;
-                // If no robots in vision radius have build_base mission and base is not fully built, build miner
+                // If no robots in vision radius have build base mission and base is not fully built, build miner
                 MapLocation[] base_bounds = getBaseBounds();
                 MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
                 RobotInfo[] nearby_robots = rc.senseNearbyRobots(center, 8, rc.getTeam());
@@ -345,6 +356,26 @@ public strictfp class RobotPlayer {
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
                         need_new_miner = false;
+                        
+                        if (enemy_HQ_loc != null){
+                            Report report = new Report();
+                            report.report_type = ReportType.ROBOT;
+                            report.location = enemy_HQ_loc;
+                            report.robot_type = RobotType.HQ;
+                            report.robot_team = false; 
+                            report_queue.add(report);
+                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                        }
+                        else{
+                            for (Symmetry sym : Symmetry.values()){
+                                if (!possible_symmetries.contains(sym)){
+                                    Report report = new Report();
+                                    report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
+                                    report.location = symmetric_HQ_locs[sym.ordinal()];
+                                    report_queue.add(report);
+                                }
+                            }
+                        }
                     }
                 }
                 if (need_new_miner){
@@ -426,8 +457,13 @@ public strictfp class RobotPlayer {
                 }
                 else if (rc.canMove(dir) && rc.getTeamSoup() < build_cost){
                     visited.clear();
-                    return;
                 }
+                if (tryRefine())
+                    return;
+                if (tryMine())
+                    return;
+
+                return; // TO DO: Anything else productive to do if miner is in position to build building, but doesn't have enough soup and there is nothing to mine/refine?
             }
         }
         MapLocation[] base_bounds = getBaseBounds();
@@ -699,6 +735,7 @@ public strictfp class RobotPlayer {
 
     static void updateExitPriority() throws GameActionException{
         MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
 
         ArrayList<Direction> exit_directions = new ArrayList<Direction>();
         exit_directions.add(Direction.NORTH);
@@ -709,8 +746,15 @@ public strictfp class RobotPlayer {
         exit_priority = new ArrayList<Direction>();
 
         while (exit_directions.size() > 0){
+            ArrayList<MapLocation> locations_to_check = new ArrayList<MapLocation>();
+            for (Symmetry sym : possible_symmetries){
+                locations_to_check.add(symmetric_HQ_locs[sym.ordinal()]);
+            }
+
             int longest_dist = -100;
+            int longest_penalty = 100;
             int longest_index = -1;
+
             for (int i = 0; i != exit_directions.size(); i++){
                 Direction dir = exit_directions.get(i);
                 int dist = 0;
@@ -728,9 +772,39 @@ public strictfp class RobotPlayer {
                         dist = rc.getMapWidth() - 1 - base_bounds[1].x;
                         break;
                 }
-                if (dist > longest_dist){
+                int enemy_HQ_penalty = 0;
+
+                int dx = dir.getDeltaX();
+                int dx_right90 = dir.rotateRight().rotateRight().getDeltaX();
+                int dx_left90 = dir.rotateLeft().rotateLeft().getDeltaX();
+                int dy = dir.getDeltaY();
+                int dy_right90 = dir.rotateRight().rotateRight().getDeltaY();
+                int dy_left90 = dir.rotateLeft().rotateLeft().getDeltaY();
+
+                for (MapLocation loc : locations_to_check){
+                    MapLocation[] fly_zone_test_points = {  center.translate(4*dx + 3*dx_left90 , 4*dy + 3*dy_left90 ),
+                                                            center.translate(4*dx + 3*dx_right90, 4*dy + 3*dy_right90),
+                                                            center.translate(4*dx               , 4*dy               ),
+                                                            center.translate(3*dx + 3*dx_left90 , 3*dy + 3*dy_left90 ),
+                                                            center.translate(3*dx + 3*dx_right90, 3*dy + 3*dy_right90),
+                                                            center.translate(  dx +   dx_left90 ,   dy +   dy_left90 ),
+                                                            center.translate(  dx +   dx_right90,   dy +   dy_right90)};
+                    boolean assessed_penalty = false;
+                    for (MapLocation fly_zone_loc : fly_zone_test_points){
+                        if (fly_zone_loc.isWithinDistanceSquared(loc, GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)){
+                            enemy_HQ_penalty = 100;
+                            assessed_penalty = true;
+                            break;
+                        }
+                    }
+
+                    if (assessed_penalty)
+                        break;
+                }
+                if (dist - enemy_HQ_penalty > longest_dist - longest_penalty){
                     longest_dist = dist;
                     longest_index = i;
+                    longest_penalty = enemy_HQ_penalty;
                 }
             }
             if (longest_index < 0)
@@ -752,11 +826,16 @@ public strictfp class RobotPlayer {
     }
 
     static void updateDropoffLocations() throws GameActionException{
-        if (HQ_loc == null || exit_priority == null || design_schools.size() == 0 || fulfillment_centers.size() == 0 || (landscaper_dropoff != null && drone_dropoff != null)){
+        if (HQ_loc == null || exit_priority == null || design_schools.size() == 0 || fulfillment_centers.size() == 0 || (landscaper_dropoff != null && drone_dropoff != null && num_vaporators_last == vaporators.size())){
             return;
         }
         MapLocation design_school_location = design_schools.get(0).location;
         MapLocation fulfillment_center_location = fulfillment_centers.get(0).location;
+        ArrayList<MapLocation> vaporator_locations = new ArrayList<MapLocation>();
+        for (RobotStatus rs : vaporators){
+            vaporator_locations.add(rs.location);
+        }
+        num_vaporators_last = vaporators.size();
         MapLocation[] base_bounds = getBaseBounds();
 
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
@@ -764,15 +843,14 @@ public strictfp class RobotPlayer {
         for (Direction dir : exit_priority){
             MapLocation[] adjacent_to_exit = {center.add(dir), center.add(dir.rotateLeft()), center.add(dir.rotateRight())};
             for (MapLocation candidate_drone_dropoff : adjacent_to_exit){
-                if (candidate_drone_dropoff.isAdjacentTo(fulfillment_center_location) && !candidate_drone_dropoff.equals(design_school_location))
+                if (candidate_drone_dropoff.isAdjacentTo(fulfillment_center_location) && !candidate_drone_dropoff.equals(fulfillment_center_location) && !candidate_drone_dropoff.equals(design_school_location) && !vaporator_locations.contains(candidate_drone_dropoff))
                 {
                     for (Direction dir2 : directions){
                         MapLocation candidate_landscaper_dropoff = candidate_drone_dropoff.add(dir2);
                         if (!isInsideBase(base_bounds, candidate_landscaper_dropoff) || !candidate_landscaper_dropoff.isAdjacentTo(design_school_location) ||
                                 candidate_landscaper_dropoff.equals(design_school_location) || candidate_landscaper_dropoff.equals(fulfillment_center_location)
-                                || candidate_landscaper_dropoff.equals(HQ_loc))
+                                || candidate_landscaper_dropoff.equals(HQ_loc) || vaporator_locations.contains(candidate_landscaper_dropoff))
                             continue;
-                        // TO DO: Should choose best locations based on vaporator placement
                         drone_dropoff = candidate_drone_dropoff;
                         landscaper_dropoff = candidate_landscaper_dropoff;
                         return;
@@ -1567,11 +1645,13 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
 
+        if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
+            return;
+
         MapLocation current_location = rc.getLocation();
         // If about to dig while standing near drone drop off location, keep moving first
         if (isOnWall(current_location)){
             // If all spots between you and exit (closest dir) are blocked, try to step in other direction
-
             boolean jam = true;
             ArrayList<MapLocation> wall_locs = getWallLocationsToExit();
 
@@ -1651,18 +1731,25 @@ public strictfp class RobotPlayer {
             }
             return;
         }
-        
+
         MapLocation target_wall = getWallLocationWithClosestElevation(current_location);
         if (isInsideBase(current_location) && target_wall != null && rc.canSenseLocation(target_wall) &&
              Math.abs(rc.senseElevation(target_wall) - rc.senseElevation(rc.getLocation())) > 3
              && landscaper_dropoff != null){
             moveToLocationUsingBugPathing(landscaper_dropoff);
-            return;
         }
-        if (target_wall != null){
+        else if (target_wall != null){
             moveToLocationUsingBugPathing(target_wall);
-            return;
         }
+
+        if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(drone_dropoff) && rc.canSenseLocation(landscaper_dropoff)){
+            RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
+            if (robot != null && robot.getType() == RobotType.LANDSCAPER && robot.getTeam() == rc.getTeam()){
+                rc.disintegrate(); // TO DO: Should test without this to make sure this isn't masking a problem
+            }
+        }
+
+
     }
     
     static void setWallLocations() throws GameActionException {
@@ -1897,7 +1984,7 @@ public strictfp class RobotPlayer {
             }
         }
         
-       if(rc.canSenseLocation(HQ_loc)){
+        if(rc.canSenseLocation(HQ_loc)){
             Direction dir = randomDirection(); // TO DO: Should do better than random. And when random direction is bad, should at least do something
             if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
                 tryMove(dir);
@@ -2076,6 +2163,32 @@ public strictfp class RobotPlayer {
         return false;
     }
 
+    static void updateMapSymmetry() throws GameActionException{
+        if (possible_symmetries.size() <= 1) return;
+        boolean updated_symmetry = false;
+
+        for (int i = possible_symmetries.size() - 1; i >= 0; i--){
+            Symmetry sym = possible_symmetries.get(i);
+            MapLocation loc = symmetric_HQ_locs[sym.ordinal()];
+            if (rc.canSenseLocation(loc)){
+                RobotInfo robot = rc.senseRobotAtLocation(loc);
+                if (robot != null && robot.getType() == RobotType.HQ && robot.getTeam() != rc.getTeam()){
+                    possible_symmetries.clear();
+                    possible_symmetries.add(sym);
+                    updated_symmetry = true;
+                    break;
+                }
+                else{
+                    possible_symmetries.remove(i);
+                    updated_symmetry = true;
+                }
+            }
+        }
+        if (updated_symmetry){
+            updateExitPriority();
+        }
+    }
+
     static void updateMapRobots() throws GameActionException{
         RobotInfo[] nearby_robots = rc.senseNearbyRobots();
         RobotType robot_type = rc.getType();
@@ -2120,12 +2233,12 @@ public strictfp class RobotPlayer {
             }
             if (HQ_loc == null && nr.getType() == RobotType.HQ && nr.getTeam() == rc.getTeam()){
                 HQ_loc = nr.getLocation();
-                updateExitPriority();
                 int mirror_x = map_width - HQ_loc.x - 1;
                 int mirror_y = map_height - HQ_loc.y - 1;
                 symmetric_HQ_locs[Symmetry.HORIZONTAL.ordinal()] = new MapLocation(HQ_loc.x, mirror_y);
                 symmetric_HQ_locs[Symmetry.VERTICAL.ordinal()] = new MapLocation(mirror_x, HQ_loc.y);
                 symmetric_HQ_locs[Symmetry.ROTATIONAL.ordinal()] = new MapLocation(mirror_x, mirror_y);
+                updateExitPriority();
             }
             if ((rc.getType() == RobotType.HQ || rc.getType() == RobotType.NET_GUN) && nr.getType() == RobotType.DELIVERY_DRONE && rc.getTeam() != nr.getTeam() && rc.getLocation().isWithinDistanceSquared(nr.getLocation(), GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED)){
                 addRobotToList(enemy_drones, nr.getID(), nr.getLocation());
@@ -2189,6 +2302,8 @@ public strictfp class RobotPlayer {
                         elevation_old = rc.senseElevation(held_unit_location_pickup_during_pathing);
                     Direction best_direction = null;
                     for (Direction dir : directions){
+                        if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
+                            continue;
                         int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){
@@ -2545,32 +2660,33 @@ public strictfp class RobotPlayer {
                 break;
         }
     }
-
-    static void updateRobot(Report report){
-        if (report.robot_type == RobotType.HQ || report.report_type == ReportType.NO_ROBOT){
-            if (possible_symmetries.size() > 1 && symmetric_HQ_locs[0] != null){
-                for (int i = 0; i != symmetric_HQ_locs.length; i++){
-                    if (possible_symmetries.contains(Symmetry.values()[i]) && report.location.equals(symmetric_HQ_locs[i])){
-                        if (report.report_type == ReportType.ROBOT && report.robot_type == RobotType.HQ){
-                            possible_symmetries.clear();
-                            possible_symmetries.add(Symmetry.values()[i]);
-                            if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
-                                enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
-                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
-                                closest_water_to_enemy_HQ = closest_water_to_HQ;
-                            }
-                            return;
+    static void updateRobot(Report report) throws GameActionException{
+        if (report.report_type != ReportType.ROBOT && report.report_type != ReportType.NO_ROBOT)
+            return;
+        if (possible_symmetries.size() > 1 && symmetric_HQ_locs[0] != null){
+            for (int i = 0; i != symmetric_HQ_locs.length; i++){
+                if (possible_symmetries.contains(Symmetry.values()[i]) && report.location.equals(symmetric_HQ_locs[i])){
+                    if (report.report_type == ReportType.ROBOT && report.robot_type == RobotType.HQ){
+                        possible_symmetries.clear();
+                        possible_symmetries.add(Symmetry.values()[i]);
+                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                            closest_water_to_enemy_HQ = closest_water_to_HQ;
+                            updateExitPriority();
                         }
-                        else{
-                            possible_symmetries.remove(Symmetry.values()[i]);
-                            if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
-                                enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
-                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
-                                closest_water_to_enemy_HQ = closest_water_to_HQ;
-                            }
-                            return;
-                        }
+                        break;
                     }
+                    else{
+                        possible_symmetries.remove(Symmetry.values()[i]);
+                        updateExitPriority();
+                        if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
+                            enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                            closest_water_to_enemy_HQ = closest_water_to_HQ;
+                        }
+                        break;
+                    } 
                 }
             }
         }

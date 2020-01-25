@@ -305,33 +305,60 @@ public strictfp class RobotPlayer {
             if (miners.size() > 3){
                 Mission new_mission = null;
                 // If no robots in vision radius have build_base mission and base is not fully built, build miner
-                RobotInfo[] nearby_robots = rc.senseNearbyRobots(8, rc.getTeam());
+                MapLocation[] base_bounds = getBaseBounds();
+                MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+                RobotInfo[] nearby_robots = rc.senseNearbyRobots(center, 8, rc.getTeam());
                 ArrayList<Integer> miner_in_base_IDs = new ArrayList<Integer>();
 
+                int design_school_count = 0;
+                int fulfillment_center_count = 0;
+                int vaporator_count = 0;
+
                 for (RobotInfo nr : nearby_robots){
-                    if (nr.getType() == RobotType.MINER){
+                    if (nr.getType() == RobotType.MINER && rc.canSenseLocation(nr.getLocation()) && rc.canSenseLocation(center) && 
+                            (nr.getLocation().isWithinDistanceSquared(center, 2) || Math.abs(rc.senseElevation(center) - rc.senseElevation(nr.getLocation())) <= 3)){
                         miner_in_base_IDs.add(nr.getID());
                     }
+                    else if (nr.getType() == RobotType.DESIGN_SCHOOL && nr.getTeam() == rc.getTeam() && nr.getLocation().isWithinDistanceSquared(center, 2)){
+                        design_school_count++;
+                    }
+                    else if (nr.getType() == RobotType.FULFILLMENT_CENTER && nr.getTeam() == rc.getTeam() && nr.getLocation().isWithinDistanceSquared(center, 2)){
+                        fulfillment_center_count++;
+                    }
+                    else if (nr.getType() == RobotType.VAPORATOR && nr.getTeam() == rc.getTeam() && nr.getLocation().isWithinDistanceSquared(center, 2)){
+                        vaporator_count++;
+                    }
                 }
-
+                boolean need_new_miner = true;
+                if (design_school_count > 0 && fulfillment_center_count > 0 && vaporator_count >= 4){
+                    need_new_miner = false;
+                }
                 for (RobotStatus rs : miners){
                     if (!miner_in_base_IDs.contains(rs.robot_id)) continue;
                     if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD_BASE){
                         new_mission = null;
+                        need_new_miner = false;
                         break;
                     }
                     if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
                         new_mission = new Mission();
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
+                        need_new_miner = false;
+                    }
+                }
+                if (need_new_miner){
+                    for (Direction dir : directions){
+                        if (tryBuild(RobotType.MINER, dir)){
+                            RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
+                            addRobotToList(miners, new_miner.getID());
+                        }                        
                     }
                 }
                 if (new_mission != null){
                     mission_queue.add(new_mission);
                 }
             } 
-
-            // Tell miner to build base
         }
         tryBlockchain();
         mission_queue.clear();
@@ -1800,8 +1827,25 @@ public strictfp class RobotPlayer {
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
                     rc.pickUpUnit(nearby_robots[i].getID());
                     enemyUnitInDrone = true;
+                    return;
                 }
-                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                else{
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    return;
+                } 
+            }
+        }
+
+        for(int i=0; i < nearby_robots.length; i++){
+            if(isOnWall(nearby_robots[i].getLocation()) && nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() != RobotType.LANDSCAPER && nearby_robots[i].getType().canBePickedUp()){
+                if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.canPickUpUnit(nearby_robots[i].getID())){
+                    rc.pickUpUnit(nearby_robots[i].getID()); // TO DO: Need to do something with this unit afterwards. Right now drone just holds it for rest of game
+                    return;
+                }
+                else{
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    return;
+                }
             }
         }
         
@@ -2003,7 +2047,7 @@ public strictfp class RobotPlayer {
                             addRobotToList(refineries, id, nr.getLocation());
                         break;
                     case VAPORATOR:
-                            addRobotToList(vaporators, id, nr.getLocation());
+                        addRobotToList(vaporators, id, nr.getLocation());
                         break;
                     case DESIGN_SCHOOL:
                         addRobotToList(design_schools, id, nr.getLocation());

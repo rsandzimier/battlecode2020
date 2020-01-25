@@ -1703,7 +1703,6 @@ public strictfp class RobotPlayer {
         // If outside, do drone stuff
 
         // Fix issue where the drone must step on the square it picked up from before it can place down
-
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
@@ -1810,7 +1809,7 @@ public strictfp class RobotPlayer {
                 else;
             }
             MapLocation drop_location = closest_water_to_HQ;
-            if (HQ_loc != null && enemy_HQ_loc != null && 
+            if (HQ_loc != null && enemy_HQ_loc != null && closest_water_to_enemy_HQ != null && 
                 rc.getLocation().distanceSquaredTo(closest_water_to_enemy_HQ) < rc.getLocation().distanceSquaredTo(closest_water_to_HQ)){
                 drop_location = closest_water_to_enemy_HQ;
             }

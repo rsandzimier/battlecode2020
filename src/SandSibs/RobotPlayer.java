@@ -327,6 +327,8 @@ public strictfp class RobotPlayer {
     }
 
     static void tryBuildBaseMission() throws GameActionException {
+        if (HQ_loc == null)
+            return;
         MapLocation location = null;
         RobotType robot_type = null;
 

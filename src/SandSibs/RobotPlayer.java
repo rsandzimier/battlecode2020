@@ -111,9 +111,10 @@ public strictfp class RobotPlayer {
     static MapLocation closest_water_to_enemy_HQ = null;
 
     static HashSet<MapLocation> visited = new HashSet<MapLocation>();
-    static MapLocation location_carried_unit_while_pathing = null;
+    static MapLocation held_unit_location_pickup_during_pathing = null;
+    static MapLocation drone_location_pickup_during_pathing = null;
     static MapLocation target_location_while_carrying_unit = null;
-    static boolean stepped_over_carried_unit_location = false;
+    static boolean took_step_since_picking_up = false;
 
     static MapLocation HQ_loc;
 
@@ -849,20 +850,16 @@ public strictfp class RobotPlayer {
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
 
         ArrayList<MapLocation> candidate_locations = new ArrayList<MapLocation>();
-        System.out.println("Choose vaporator location");
         for (Direction dir : Direction.allDirections()){
             MapLocation candidate_location = center.add(dir);
             if (!candidate_location.equals(HQ_loc) && !candidate_location.equals(design_schools.get(0).location) &&
                     !candidate_location.equals(fulfillment_centers.get(0).location) && !candidate_location.equals(landscaper_dropoff) &&
                     !candidate_location.equals(drone_dropoff) && !anyRobotsInListAtLocation(vaporators, candidate_location)){
                 candidate_locations.add(candidate_location);
-                System.out.println("Candidate location: " + candidate_location);
-
             }
         }
         boolean last_vaporator_found = false;
         for (MapLocation loc : candidate_locations){
-            System.out.println("Test Candidate location: " + loc);
             ArrayList<MapLocation> adjacent_candidates = new ArrayList<MapLocation>();
             boolean would_isolate = false;
             for (MapLocation loc2 : candidate_locations){
@@ -870,7 +867,6 @@ public strictfp class RobotPlayer {
                     for (MapLocation loc3 : adjacent_candidates){
                         if (!loc2.isAdjacentTo(loc3)){
                             would_isolate = true;
-                            System.out.println("Would isolate " + loc2 + " from " + loc3);
                             break;
                         }
                     }
@@ -885,15 +881,10 @@ public strictfp class RobotPlayer {
 
             if (candidate_locations.size() != 1 && !last_vaporator_found && (loc.isAdjacentTo(drone_dropoff) || loc.isAdjacentTo(landscaper_dropoff))){
                 last_vaporator_found = true;
-                System.out.println("Near drop off");
                 continue;
             }
-            System.out.println("Choose: " + loc);
-
             return loc;
         }
-        System.out.println("No candidate found");
-
         return null;
     }
 
@@ -1010,9 +1001,6 @@ public strictfp class RobotPlayer {
         int design_school_base_index = getBaseTileIndex(design_school_location);
 
         MapLocation candidate_location = center;
-
-        for (Direction ep: exit_priority)
-            System.out.println(ep);
 
         if (HQ_loc.equals(center)){
             for (Direction dir : exit_priority){
@@ -1363,11 +1351,33 @@ public strictfp class RobotPlayer {
             MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
             RobotInfo[] nearby_robots = rc.senseNearbyRobots();
             for (RobotInfo nr : nearby_robots){
-                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.LANDSCAPER && nr.getLocation().isWithinDistanceSquared(center, 8)){
-                    count_base_and_walls++;
+                if (nr.getTeam() == rc.getTeam() && nr.getLocation().isWithinDistanceSquared(center, 8)){
+                    if (nr.getType() == RobotType.LANDSCAPER){
+                        count_base_and_walls++;
+                    }
+                    else if (nr.getType() == RobotType.DELIVERY_DRONE && nr.isCurrentlyHoldingUnit()){
+                        int held_id = nr.getHeldUnitID();
+                        if (held_id > 0 && rc.canSenseRobot(held_id)){
+                            RobotInfo held_unit = rc.senseRobot(held_id);
+                            if (held_unit.getTeam() == rc.getTeam() && held_unit.getType() == RobotType.LANDSCAPER && held_unit.getLocation().isWithinDistanceSquared(center, 8)){
+                                count_base_and_walls++;
+                            }
+                        }
+                    }
                 }
-                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.LANDSCAPER && nr.getLocation().isWithinDistanceSquared(center, 2)){
-                    count_base++;
+                if (nr.getTeam() == rc.getTeam() && nr.getLocation().isWithinDistanceSquared(center, 2)){
+                    if (nr.getType() == RobotType.LANDSCAPER){
+                        count_base++;
+                    }
+                    else if (nr.getType() == RobotType.DELIVERY_DRONE && nr.isCurrentlyHoldingUnit()){
+                        int held_id = nr.getHeldUnitID();
+                        if (held_id > 0 && rc.canSenseRobot(held_id)){
+                            RobotInfo held_unit = rc.senseRobot(held_id);
+                            if (held_unit.getTeam() == rc.getTeam() && held_unit.getType() == RobotType.LANDSCAPER && held_unit.getLocation().isWithinDistanceSquared(center, 2)){
+                                count_base++;
+                            }
+                        }
+                    }
                 }
             }
             if (count_base_and_walls - count_base >= 2 && count_base > 0){
@@ -1381,7 +1391,7 @@ public strictfp class RobotPlayer {
                 return;
 
             for(Direction dir : directions)
-                if(tryBuild(RobotType.LANDSCAPER, dir))
+                if((drone_dropoff == null || !rc.getLocation().add(dir).equals(drone_dropoff)) && tryBuild(RobotType.LANDSCAPER, dir))
                     return;
         }
     }
@@ -1395,13 +1405,22 @@ public strictfp class RobotPlayer {
                 return;
             RobotInfo[] nearby_robots = rc.senseNearbyRobots();
 
+            MapLocation[] base_bounds = getBaseBounds();
+            MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+
             int count_LS = 0;
+            int count_drone = 0;
             for (RobotInfo nr : nearby_robots){
-                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.LANDSCAPER && nr.getLocation().isWithinDistanceSquared(HQ_loc, 8)){
+                if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.LANDSCAPER && nr.getLocation().isWithinDistanceSquared(center, 8)){
                     count_LS++;
+                }
+                else if (nr.getTeam() == rc.getTeam() && nr.getType() == RobotType.DELIVERY_DRONE && nr.getLocation().isWithinDistanceSquared(center, 2)){
+                    count_drone++;
                 }
             }
             if (count_LS < 2)
+                return;
+            if (count_drone > 0) // TO DO: Maybe will not work well against rushes
                 return;
             RobotInfo robot = null;
             if (drone_dropoff != null && rc.canSenseLocation(drone_dropoff))
@@ -1460,12 +1479,6 @@ public strictfp class RobotPlayer {
         clockwise.add(start);
         MapLocation loc = start;
         while(!loc.equals(exit)){ 
-            // System.out.println("Clockwise");
-            // System.out.println("Start: " + start);
-            // System.out.println("Loc: " + loc);
-            // System.out.println("Direction: " + direction);
-            // System.out.println("Exit: " + exit);
-            // System.out.println("End: " + loc.equals(exit));
             MapLocation new_loc = loc.add(direction);
 
             if (isOnWall(base_bounds, new_loc)){
@@ -1485,13 +1498,7 @@ public strictfp class RobotPlayer {
 
         counterclockwise.add(start);
         loc = start;
-        while(!loc.equals(exit)){
-            // System.out.println("Clockwise");
-            // System.out.println("Start: " + start);
-            // System.out.println("Loc: " + loc);
-            // System.out.println("Direction: " + direction);
-            // System.out.println("Exit: " + exit);
-            // System.out.println("End: " + loc.equals(exit)); 
+        while(!loc.equals(exit)){ 
             MapLocation new_loc = loc.add(direction);
             if (isOnWall(base_bounds, new_loc)){
                 loc = new_loc;
@@ -1658,6 +1665,8 @@ public strictfp class RobotPlayer {
         // If at drone drop off and there is a landscaper available, pick and place
         // If outside, do drone stuff
 
+        // Fix issue where the drone must step on the square it picked up from before it can place down
+
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
@@ -1666,14 +1675,15 @@ public strictfp class RobotPlayer {
 
         MapLocation current_location = rc.getLocation();
 
-        if (location_carried_unit_while_pathing != null && target_location_while_carrying_unit != null){
-            moveToLocationUsingBugPathing(target_location_while_carrying_unit);
+        if (held_unit_location_pickup_during_pathing != null && target_location_while_carrying_unit != null){
+            moveToLocationUsingBugPathing(target_location_while_carrying_unit, !isInsideBase(current_location) && !isOnWall(current_location));
+            return;
         }
 
         if (isInsideBase(current_location) && drone_dropoff != null){
             RobotInfo this_drone = rc.senseRobotAtLocation(current_location);
             int carried_unit_id = this_drone.getHeldUnitID();
-            if (carried_unit_id > 0 && location_carried_unit_while_pathing == null){
+            if (carried_unit_id > 0 && held_unit_location_pickup_during_pathing == null){
                 RobotInfo carried_unit = rc.senseRobot(carried_unit_id);
                 if (carried_unit.getType() == RobotType.LANDSCAPER && carried_unit.getTeam() == ourTeam){
                     for (Direction dir : directions){
@@ -1683,8 +1693,15 @@ public strictfp class RobotPlayer {
                             return;
                         }
                     }
-                    moveToLocationUsingBugPathing(drone_dropoff);
-                    return;
+                    if (!current_location.equals(drone_dropoff)){
+                        moveToLocationUsingBugPathing(drone_dropoff);
+                        return;
+                    }
+                    if (current_location.isAdjacentTo(landscaper_dropoff) && rc.canDropUnit(current_location.directionTo(landscaper_dropoff))){
+                        rc.dropUnit(current_location.directionTo(landscaper_dropoff));
+                        return;
+                    }
+                    return; // TO DO: Is there any better way than just returning here. Make sense to disintegrate or force another unit to disintegrate?
                 }
             }
 
@@ -1698,7 +1715,7 @@ public strictfp class RobotPlayer {
             }
             boolean no_dropoff_open = true;
             for (Direction dir : directions){
-                MapLocation loc = current_location.add(dir);
+                MapLocation loc = drone_dropoff.add(dir);
                 if (isOnWall(loc) && rc.canSenseLocation(loc) && rc.senseRobotAtLocation(loc) == null){
                     no_dropoff_open = false;
                     break;
@@ -1711,19 +1728,18 @@ public strictfp class RobotPlayer {
 
                 for (Direction dir : exit_priority){
                     if (center.add(dir).add(dir).isAdjacentTo(drone_dropoff)){
-                        System.out.println("Path outside pre. Picked from: " + location_carried_unit_while_pathing + " going to: " + target_location_while_carrying_unit + " stepped over: " + stepped_over_carried_unit_location);
-                        moveToLocationUsingBugPathing(center.add(dir).add(dir).add(dir).add(dir));
-                        System.out.println("Trying to path to outside: " + center.add(dir).add(dir).add(dir).add(dir));
-                        System.out.println("Path outside post. Picked from: " + location_carried_unit_while_pathing + " going to: " + target_location_while_carrying_unit + " stepped over: " + stepped_over_carried_unit_location);
+                        moveToLocationUsingBugPathing(center.add(dir).add(dir).add(dir).add(dir), false);
                         return;
                     }
                 }              
                 return;
             }
+
             if (!current_location.equals(drone_dropoff)){
                 moveToLocationUsingBugPathing(drone_dropoff);
                 return;
             }
+
             if (landscaper_dropoff != null && rc.canSenseLocation(landscaper_dropoff)){
                 RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
                 if (robot != null && robot.getType() == RobotType.LANDSCAPER && 
@@ -1732,6 +1748,7 @@ public strictfp class RobotPlayer {
                     return;
                 }
             }
+
             for (Direction dir : directions){
                 MapLocation loc = current_location.add(dir);
                 if (isInsideBase(loc)){
@@ -1743,6 +1760,7 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+
             return;
         }
         
@@ -1777,7 +1795,11 @@ public strictfp class RobotPlayer {
             }
         }
         
-        if(rc.canSenseLocation(HQ_loc)) tryMove(randomDirection());
+        if(rc.canSenseLocation(HQ_loc)){
+            Direction dir = randomDirection(); // TO DO: Should do better than random. And when random direction is bad, should at least do something
+            if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
+                tryMove(dir);
+        }
         else moveToLocationUsingBugPathing(HQ_loc);        
     }
 
@@ -2032,28 +2054,30 @@ public strictfp class RobotPlayer {
                 RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(path_result_left.direction));
                 if (robot != null && rc.canPickUpUnit(robot.getID())){
                     rc.pickUpUnit(robot.getID());
-                    location_carried_unit_while_pathing = rc.getLocation().add(path_result_left.direction);
+                    held_unit_location_pickup_during_pathing = rc.getLocation().add(path_result_left.direction);
+                    drone_location_pickup_during_pathing = rc.getLocation();
                     target_location_while_carrying_unit = location;
-                    stepped_over_carried_unit_location = false;
+                    took_step_since_picking_up = false;
                 }
             }
-            if (allow_picking_up_units && location_carried_unit_while_pathing != null && stepped_over_carried_unit_location && !rc.getLocation().equals(location_carried_unit_while_pathing)){
+            if (allow_picking_up_units && held_unit_location_pickup_during_pathing != null && took_step_since_picking_up && !rc.getLocation().equals(held_unit_location_pickup_during_pathing)){
                 int closest_dist = 10000;
                 int closest_elevation = 10000;
                 MapLocation drop_location = null;
-                if (rc.getLocation().isAdjacentTo(location_carried_unit_while_pathing) && rc.canDropUnit(rc.getLocation().directionTo(location_carried_unit_while_pathing))){
-                    rc.dropUnit(rc.getLocation().directionTo(location_carried_unit_while_pathing));
-                    location_carried_unit_while_pathing = null;
+                if (rc.getLocation().isAdjacentTo(held_unit_location_pickup_during_pathing) && rc.canDropUnit(rc.getLocation().directionTo(held_unit_location_pickup_during_pathing))){
+                    rc.dropUnit(rc.getLocation().directionTo(held_unit_location_pickup_during_pathing));
+                    held_unit_location_pickup_during_pathing = null;
+                    drone_location_pickup_during_pathing = null;
                     target_location_while_carrying_unit = null;
-                    stepped_over_carried_unit_location = false;
+                    took_step_since_picking_up = false;
                 }
                 else{
                     int elevation_old = 0;
-                    if (rc.canSenseLocation(location_carried_unit_while_pathing))
-                        elevation_old = rc.senseElevation(location_carried_unit_while_pathing);
+                    if (rc.canSenseLocation(held_unit_location_pickup_during_pathing))
+                        elevation_old = rc.senseElevation(held_unit_location_pickup_during_pathing);
                     Direction best_direction = null;
                     for (Direction dir : directions){
-                        int dist = rc.getLocation().add(dir).distanceSquaredTo(location_carried_unit_while_pathing);
+                        int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){
                             elevation_new = rc.senseElevation(rc.getLocation().add(dir));
@@ -2071,16 +2095,17 @@ public strictfp class RobotPlayer {
                     }
                     if (best_direction != null && rc.canDropUnit(best_direction)){
                         rc.dropUnit(best_direction);
-                        location_carried_unit_while_pathing = null;
+                        held_unit_location_pickup_during_pathing = null;
+                        drone_location_pickup_during_pathing = null;
                         target_location_while_carrying_unit = null;
-                        stepped_over_carried_unit_location = false;
+                        took_step_since_picking_up = false;
                     }
                 }
 
             }
             tryMove(path_result_left.direction);
-            if (allow_picking_up_units && location_carried_unit_while_pathing != null && rc.getLocation().equals(location_carried_unit_while_pathing)){
-                stepped_over_carried_unit_location = true;
+            if (allow_picking_up_units && drone_location_pickup_during_pathing != null && !rc.getLocation().equals(drone_location_pickup_during_pathing)){
+                took_step_since_picking_up = true;
             }
             if (path_result_left.steps >= 100){
                 visited.clear();
@@ -2091,28 +2116,30 @@ public strictfp class RobotPlayer {
                 RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(path_result_right.direction));
                 if (robot != null && rc.canPickUpUnit(robot.getID())){
                     rc.pickUpUnit(robot.getID());
-                    location_carried_unit_while_pathing = rc.getLocation().add(path_result_right.direction);
+                    held_unit_location_pickup_during_pathing = rc.getLocation().add(path_result_right.direction);
+                    drone_location_pickup_during_pathing = rc.getLocation();
                     target_location_while_carrying_unit = location;
-                    stepped_over_carried_unit_location = false;
+                    took_step_since_picking_up = false;
                 }
             }
-            if (allow_picking_up_units && location_carried_unit_while_pathing != null && stepped_over_carried_unit_location && !rc.getLocation().equals(location_carried_unit_while_pathing)){
+            if (allow_picking_up_units && held_unit_location_pickup_during_pathing != null && took_step_since_picking_up && !rc.getLocation().equals(held_unit_location_pickup_during_pathing)){
                 int closest_dist = 10000;
                 int closest_elevation = 10000;
                 MapLocation drop_location = null;
-                if (rc.getLocation().isAdjacentTo(location_carried_unit_while_pathing) && rc.canDropUnit(rc.getLocation().directionTo(location_carried_unit_while_pathing))){
-                    rc.dropUnit(rc.getLocation().directionTo(location_carried_unit_while_pathing));
-                    location_carried_unit_while_pathing = null;
+                if (rc.getLocation().isAdjacentTo(held_unit_location_pickup_during_pathing) && rc.canDropUnit(rc.getLocation().directionTo(held_unit_location_pickup_during_pathing))){
+                    rc.dropUnit(rc.getLocation().directionTo(held_unit_location_pickup_during_pathing));
+                    held_unit_location_pickup_during_pathing = null;
+                    drone_location_pickup_during_pathing = null;
                     target_location_while_carrying_unit = null;
-                    stepped_over_carried_unit_location = false;
+                    took_step_since_picking_up = false;
                 }
                 else{
                     int elevation_old = 0;
-                    if (rc.canSenseLocation(location_carried_unit_while_pathing))
-                        elevation_old = rc.senseElevation(location_carried_unit_while_pathing);
+                    if (rc.canSenseLocation(held_unit_location_pickup_during_pathing))
+                        elevation_old = rc.senseElevation(held_unit_location_pickup_during_pathing);
                     Direction best_direction = null;
                     for (Direction dir : directions){
-                        int dist = rc.getLocation().add(dir).distanceSquaredTo(location_carried_unit_while_pathing);
+                        int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){
                             elevation_new = rc.senseElevation(rc.getLocation().add(dir));
@@ -2130,15 +2157,16 @@ public strictfp class RobotPlayer {
                     }
                     if (best_direction != null && rc.canDropUnit(best_direction)){
                         rc.dropUnit(best_direction);
-                        location_carried_unit_while_pathing = null;
+                        held_unit_location_pickup_during_pathing = null;
+                        drone_location_pickup_during_pathing = null;
                         target_location_while_carrying_unit = null;
-                        stepped_over_carried_unit_location = false;
+                        took_step_since_picking_up = false;
                     }
                 }
             }
             tryMove(path_result_right.direction);
-            if (allow_picking_up_units && location_carried_unit_while_pathing != null && rc.getLocation().equals(location_carried_unit_while_pathing)){
-                stepped_over_carried_unit_location = true;
+            if (allow_picking_up_units && drone_location_pickup_during_pathing != null && !rc.getLocation().equals(drone_location_pickup_during_pathing)){
+                took_step_since_picking_up = true;
             }
             if (path_result_right.steps >= 100){
                 visited.clear();
@@ -2182,17 +2210,28 @@ public strictfp class RobotPlayer {
 
         int num_steps = 0;
 
+        boolean holding_unit_at_step = false;
+        if (allow_picking_up_units && rc.isCurrentlyHoldingUnit())
+            holding_unit_at_step = true;
+
         while(true){
 
             for (int i = 0; i != directions.length; i++){
                 MapLocation destination = current_location.add(dir);
                 RobotInfo robot = null;
-                if (allow_picking_up_units && rc.canSenseLocation(destination))
+                if (allow_picking_up_units && !holding_unit_at_step && rc.canSenseLocation(destination))
                     robot = rc.senseRobotAtLocation(destination);
-                if (onTheMap(destination) && (!rc.canSenseLocation(destination) || ((!rc.isLocationOccupied(destination) || (allow_picking_up_units && robot != null && rc.canPickUpUnit(robot.getID()))) &&
+                boolean destination_occupied = false;
+                if (rc.canSenseLocation(destination))
+                    destination_occupied = rc.isLocationOccupied(destination);
+                if (onTheMap(destination) && (!rc.canSenseLocation(destination) || ((!destination_occupied || (allow_picking_up_units && robot != null && rc.canPickUpUnit(robot.getID()))) &&
                         (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
                         !visited.contains(destination) && !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0))) && 
                         (base_bounds == null || isInsideBase(base_bounds, destination))){
+                    if (allow_picking_up_units){
+                        holding_unit_at_step = destination_occupied;
+                    }
+
                     current_location = destination;
                     visited_plan.add(current_location);
                     // rc.setIndicatorDot(current_location,255,0,0);

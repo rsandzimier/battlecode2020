@@ -1695,27 +1695,52 @@ public strictfp class RobotPlayer {
     }
     
     static void attackDroneMission() throws GameActionException {
-            if(turnCount >= 2250) droneRush();
-            else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
-            else moveToLocationUsingBugPathing(enemy_HQ_loc);
+        if(rc.getRoundNum() >= 2250) droneRush();
+        else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
+        else moveToLocationUsingBugPathing(enemy_HQ_loc);
     }
 
     static void droneRush() throws GameActionException {
-        RobotInfo[] nearbyRobots = rc.senseNearbyRobots();
-        RobotInfo whoToAttack = null;
-        for(int i=0; i < nearbyRobots.length; i++){
-            if(nearbyRobots[i].getTeam() != rc.getTeam() && nearbyRobots[i].getType() == RobotType.LANDSCAPER){
-                whoToAttack = nearbyRobots[i];
-                break;
+        Team ourTeam = rc.getTeam();
+        
+        if(rc.isCurrentlyHoldingUnit() && enemyUnitInDrone){
+            for(Direction dir : directions){
+                if(rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
+                    rc.dropUnit(dir);
+                    enemyUnitInDrone = false;
+                }
+                else;
+            }
+            MapLocation drop_location = closest_water_to_HQ;
+            if (HQ_loc != null && enemy_HQ_loc != null && closest_water_to_enemy_HQ != null &&
+                rc.getLocation().distanceSquaredTo(closest_water_to_enemy_HQ) < rc.getLocation().distanceSquaredTo(closest_water_to_HQ)){
+                drop_location = closest_water_to_enemy_HQ;
+            }
+            if (drop_location != null)
+                moveToLocationUsingBugPathing(drop_location);
+            else
+                tryMove(randomDirection());
+            return;
+        }
+        
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() != ourTeam && nearby_robots[i].getType().canBePickedUp()){
+                if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
+                    rc.pickUpUnit(nearby_robots[i].getID());
+                    enemyUnitInDrone = true;
+                    return;
+                }
+                else{
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    return;
+                }
             }
         }
-
-        if(rc.getLocation().isAdjacentTo(whoToAttack.getLocation()) && rc.isReady() && rc.canPickUpUnit(whoToAttack.getID())) rc.pickUpUnit(whoToAttack.getID());
-        else if(rc.canMove(rc.getLocation().directionTo(whoToAttack.getLocation())) && rc.isReady()) rc.move(rc.getLocation().directionTo(whoToAttack.getLocation()));
-        else tryMove(randomDirection());
     }
 
     static void tryDefaultDroneMission() throws GameActionException{
+        System.out.println(turnCount);
         // If inside base and no landscaper available, go outside
         // If inside base and landscaper available and not at drone dropoff, go to drone drop off
         // If at drone drop off and there is a landscaper available, pick and place
@@ -1726,11 +1751,9 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
         
-        if(turnCount >= 1250 && !(rc.isCurrentlyHoldingUnit()) && enemy_HQ_loc != null){
-            for(Direction dir : directions){
-                if((rc.canMove(dir))) attackDroneMission();
-                break;
-                }
+        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null){
+            attackDroneMission();
+            return;
         }
         
         Team ourTeam = rc.getTeam();

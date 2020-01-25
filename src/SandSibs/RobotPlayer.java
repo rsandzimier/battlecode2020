@@ -1801,7 +1801,7 @@ public strictfp class RobotPlayer {
                     rc.pickUpUnit(nearby_robots[i].getID());
                     enemyUnitInDrone = true;
                 }
-                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation());
+                else moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
             }
         }
         
@@ -1810,7 +1810,7 @@ public strictfp class RobotPlayer {
             if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
                 tryMove(dir);
         }
-        else moveToLocationUsingBugPathing(HQ_loc);        
+        else moveToLocationUsingBugPathing(HQ_loc, true, false);        
     }
 
     static void runDeliveryDrone() throws GameActionException {
@@ -2045,6 +2045,10 @@ public strictfp class RobotPlayer {
 
     static void moveToLocationUsingBugPathing(MapLocation location, MapLocation[] base_bounds) throws GameActionException{
         moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),base_bounds);
+    }
+
+    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units) throws GameActionException{
+        moveToLocationUsingBugPathing(location, avoid_net_guns, allow_picking_up_units, null);
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException{

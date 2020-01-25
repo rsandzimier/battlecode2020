@@ -1782,9 +1782,12 @@ public strictfp class RobotPlayer {
     }
     
     static void attackDroneMission() throws GameActionException {
-        if(rc.getRoundNum() >= 2250) droneRush();
+        RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc)));
+        /*if(robot.getTeam() != rc.getTeam() && rc.canPickUpUnit(robot.getID()) && rc.isReady()) rc.pickUpUnit(robot.getID());
+        else if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(enemy_HQ_loc.directionTo(rc.getLocation()))) rc.dropUnit(enemy_HQ_loc.directionTo(rc.getLocation()));
+        else */if(rc.getRoundNum() >= 2000) droneRush();
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
-        else moveToLocationUsingBugPathing(enemy_HQ_loc);
+        else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
     }
 
     static void droneRush() throws GameActionException {
@@ -1819,7 +1822,7 @@ public strictfp class RobotPlayer {
                     return;
                 }
                 else{
-                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), false, false);
                     return;
                 }
             }

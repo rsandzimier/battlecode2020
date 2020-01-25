@@ -426,8 +426,13 @@ public strictfp class RobotPlayer {
                 }
                 else if (rc.canMove(dir) && rc.getTeamSoup() < build_cost){
                     visited.clear();
-                    return;
                 }
+                if (tryRefine())
+                    return;
+                if (tryMine())
+                    return;
+
+                return; // TO DO: Anything else productive to do if miner is in position to build building, but doesn't have enough soup and there is nothing to mine/refine?
             }
         }
         MapLocation[] base_bounds = getBaseBounds();

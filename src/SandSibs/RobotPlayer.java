@@ -119,6 +119,7 @@ public strictfp class RobotPlayer {
     static MapLocation HQ_loc;
 
     static MapLocation enemy_HQ_loc;
+    static int last_enemy_HQ_loc_broadcast_turn = 0;
 
     static MapLocation drone_dropoff = null;
     static MapLocation landscaper_dropoff = null;
@@ -244,6 +245,15 @@ public strictfp class RobotPlayer {
         readBlockChain();
         updateMapRobots();
 
+        if (enemy_HQ_loc != null && rc.getRoundNum() - last_enemy_HQ_loc_broadcast_turn > 50){ // TO DO: No verification that it actually was broadcast. Also, consider dynamically determining cost to prevent opponent spamming
+            Report report = new Report();
+            report.report_type = ReportType.ROBOT;
+            report.location = enemy_HQ_loc;
+            report.robot_type = RobotType.HQ;
+            report.robot_team = false; 
+            report_queue.add(report);
+            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+        }
 
         for (RobotStatus ed :enemy_drones){
             if (rc.canShootUnit(ed.robot_id)){
@@ -2444,6 +2454,7 @@ public strictfp class RobotPlayer {
                             possible_symmetries.add(Symmetry.values()[i]);
                             if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
                                 enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
                                 closest_water_to_enemy_HQ = closest_water_to_HQ;
                             }
                             return;
@@ -2452,6 +2463,7 @@ public strictfp class RobotPlayer {
                             possible_symmetries.remove(Symmetry.values()[i]);
                             if (possible_symmetries.size() == 1 && enemy_HQ_loc == null){
                                 enemy_HQ_loc = symmetric_HQ_locs[possible_symmetries.get(0).ordinal()];
+                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
                                 closest_water_to_enemy_HQ = closest_water_to_HQ;
                             }
                             return;
@@ -2766,11 +2778,7 @@ public strictfp class RobotPlayer {
     static void tryBlockchain() throws GameActionException {
         if (rc.getRoundNum() == 0)
             return;
-        if (rc.getType() == RobotType.HQ){
-            if (mission_queue.size() == 0){
-                return;
-            }
-
+        if (rc.getType() == RobotType.HQ && mission_queue.size() != 0){
             int[] message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
             int remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
             int i = 0;
@@ -2822,11 +2830,7 @@ public strictfp class RobotPlayer {
                 mission_queue_message.clear();
             }
         }
-        else{
-            if (report_queue.size() == 0){
-                return;
-            }
-
+        if (report_queue.size() != 0){
             int[] message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
             int remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
             int i = 0;
@@ -2835,7 +2839,6 @@ public strictfp class RobotPlayer {
 
             ArrayList<Integer> ind_to_remove = new ArrayList<Integer>();
             ArrayList<Integer> ind_to_remove_cumm = new ArrayList<Integer>();
-
 
             while(i < report_queue.size()){
                 report = report_queue.get(i);
@@ -2900,10 +2903,6 @@ public strictfp class RobotPlayer {
             for (int j = ind_to_remove_cumm.size() - 1; j >= 0; j--){
                 report_queue.remove(j);
             }
-
-
-
-
         }
         // System.out.println(rc.getRoundMessages(turnCount-1));
     }

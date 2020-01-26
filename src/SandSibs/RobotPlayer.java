@@ -2358,9 +2358,11 @@ public strictfp class RobotPlayer {
 
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
+
         if(tryUnburyBuilding(HQ_loc)){
             return;
         }
+
         MapLocation[] base_bounds = getBaseBounds();
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
         RobotInfo[] enemy_robots_in_base = rc.senseNearbyRobots(center, 8, rc.getTeam().opponent());
@@ -2389,6 +2391,7 @@ public strictfp class RobotPlayer {
                 break;
             }
         }
+
         if (!wall_flooded && rc.canSenseLocation(HQ_loc)){
             int hq_elevation = rc.senseElevation(HQ_loc);
             for (Direction dir : Direction.allDirections()){
@@ -2408,11 +2411,19 @@ public strictfp class RobotPlayer {
                             return;
                         }
                         if (rc.getLocation().isAdjacentTo(center.add(dir))){
+                            Direction best_direction = null;
+                            int lowest_elevation = 1000000;
                             for (Direction dir2 : directions){
-                                if (isOnWall(rc.getLocation().add(dir2)) && rc.canDepositDirt(dir2)){
-                                    rc.depositDirt(dir2);
-                                    return;
+                                if (isOnWall(rc.getLocation().add(dir2)) && rc.canDepositDirt(dir2) && rc.canSenseLocation(rc.getLocation().add(dir2))){
+                                    int elevation_i = rc.senseElevation(rc.getLocation().add(dir2));
+                                    if (elevation_i < lowest_elevation){
+                                        best_direction = dir2;
+                                        lowest_elevation = elevation_i;           
+                                    }
                                 }
+                            }
+                            if (best_direction != null && rc.canDepositDirt(best_direction)){
+                                rc.depositDirt(best_direction);
                             }
                             for (Direction dir2 : directions){
                                 if (rc.canSenseLocation(rc.getLocation().add(dir2))){
@@ -2528,6 +2539,7 @@ public strictfp class RobotPlayer {
             }
 
             MapLocation buildLocation = checkElevationsOfWall();
+
             if(rc.getLocation().equals(buildLocation) || rc.getLocation().isAdjacentTo(buildLocation)){
                 if(rc.canDepositDirt(current_location.directionTo(buildLocation))){
                     rc.depositDirt(current_location.directionTo(buildLocation));
@@ -2571,6 +2583,27 @@ public strictfp class RobotPlayer {
         }
 
         MapLocation target_wall = getWallLocationWithClosestElevation(current_location);
+        if (current_location.isAdjacentTo(target_wall) && !isInsideBase(current_location)){
+            if (tryMove(current_location.directionTo(target_wall))){
+                return;
+            }
+            if (rc.canDepositDirt(current_location.directionTo(target_wall))){
+                rc.depositDirt(current_location.directionTo(target_wall));
+                return;
+            }
+            for (Direction dir : directions){
+                if (!isOnWall(current_location.add(dir)) && rc.canDigDirt(dir) && !willFloodBase(current_location.add(dir))){
+                    rc.digDirt(dir);
+                    return;
+                }
+            }
+            for (Direction dir : directions){
+                if (rc.canDigDirt(dir) && !willFloodBase(current_location.add(dir))){
+                    rc.digDirt(dir);
+                    return;
+                }
+            }
+        }
         if (isInsideBase(current_location) && target_wall != null && rc.canSenseLocation(target_wall) &&
              Math.abs(rc.senseElevation(target_wall) - rc.senseElevation(rc.getLocation())) > 3
              && landscaper_dropoff != null){

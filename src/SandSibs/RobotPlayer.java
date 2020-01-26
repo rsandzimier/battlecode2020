@@ -1783,13 +1783,11 @@ public strictfp class RobotPlayer {
     
     static void attackDroneMission() throws GameActionException {
         RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc)));
-        /*if(robot.getTeam() != rc.getTeam() && rc.canPickUpUnit(robot.getID()) && rc.isReady()) rc.pickUpUnit(robot.getID());
-        else if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(enemy_HQ_loc.directionTo(rc.getLocation()))) rc.dropUnit(enemy_HQ_loc.directionTo(rc.getLocation()));
-        else */if(rc.getRoundNum() >= 2000) droneRush();
+        if(rc.getRoundNum() >= 2000 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
         else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
     }
-
+    
     static void droneRush() throws GameActionException {
         Team ourTeam = rc.getTeam();
         

@@ -1825,6 +1825,8 @@ public strictfp class RobotPlayer {
                 }
             }
         }
+        if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20)) moveToLocationUsingBugPathing(HQ_loc);
+        else;
     }
 
     static void tryDefaultDroneMission() throws GameActionException{
@@ -1839,7 +1841,7 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
         
-        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null){
+        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !(rc.getLocation().isAdjacentTo(HQ_loc)) && !(rc.isCurrentlyHoldingUnit())){
             attackDroneMission();
             return;
         }

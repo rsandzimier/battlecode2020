@@ -51,16 +51,16 @@ public strictfp class RobotPlayer {
     }
     enum MissionType
     {
-        SCOUT, SCOUT_MINE, MINE, BUILD, BUILD_BASE, DRONE_DEFAULT; 
+        SCOUT, SCOUT_MINE, MINE, BUILD, BUILD_BASE, DRONE_DEFAULT;
     }
     enum ReportType
     {
-        SOUP, ROBOT, NO_ROBOT, MISSION_STATUS, FLOOD; 
+        SOUP, ROBOT, NO_ROBOT, MISSION_STATUS, FLOOD;
     }
     enum Symmetry
     {
-        HORIZONTAL, VERTICAL, ROTATIONAL; 
-    }   
+        HORIZONTAL, VERTICAL, ROTATIONAL;
+    }
     enum Label
     {
         MISSION_TYPE, ROBOT_ID, LOCATION, ROBOT_TYPE, DISTANCE, REPORT_TYPE, ROBOT_TEAM, MISSION_SUCCESSFUL, SOUP_AMOUNT, END_MESSAGE;
@@ -71,8 +71,8 @@ public strictfp class RobotPlayer {
         MissionType mission_type;
         MapLocation location;
         RobotType robot_type;
-        int distance; 
-    }    
+        int distance;
+    }
 
     static class Report{
         ReportType report_type;
@@ -82,7 +82,7 @@ public strictfp class RobotPlayer {
         int robot_id;
         int soup_amount;
         MissionType mission_type;
-        boolean successful; 
+        boolean successful;
     }
 
     static class RobotStatus{
@@ -153,7 +153,7 @@ public strictfp class RobotPlayer {
 
     static int blockchain_read_index;
     static int blockchain_password;
-    static HashSet<Integer> blockchain_password_hashes = new HashSet<Integer>(); 
+    static HashSet<Integer> blockchain_password_hashes = new HashSet<Integer>();
 
     static ArrayList<Direction> exit_priority = null;
 
@@ -286,7 +286,7 @@ public strictfp class RobotPlayer {
                 for (Symmetry sym : possible_symmetries){
                     needsScouting[sym.ordinal()] = true;
                 }
-            } 
+            }
 
             for (RobotStatus rs : drones){
                 if (rs.missions.size() > 0 && rs.missions.get(0).mission_type == MissionType.SCOUT){
@@ -311,7 +311,7 @@ public strictfp class RobotPlayer {
                         assigned_scouting_mission = true;
                     }
                 }
-            } 
+            }
 
             if (miners.size() > 3){
                 Mission new_mission = null;
@@ -356,7 +356,7 @@ public strictfp class RobotPlayer {
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
                         need_new_miner = false;
-
+                        
                         if (enemy_HQ_loc != null){
                             Report report = new Report();
                             report.report_type = ReportType.ROBOT;
@@ -448,7 +448,7 @@ public strictfp class RobotPlayer {
                         build_cost = 500;
                         break;
                     default:
-                        break;                    
+                        break;
                 }
                 if (tryBuild(robot_type, dir)){
                     Report report = new Report();
@@ -458,7 +458,7 @@ public strictfp class RobotPlayer {
                     report.location = location;
                     report.robot_id = rc.senseRobotAtLocation(location).getID();
                     report_queue.add(report);
-                    return;      
+                    return;
                 }
                 else if (rc.canMove(dir) && rc.getTeamSoup() < build_cost){
                     visited.clear();
@@ -517,7 +517,7 @@ public strictfp class RobotPlayer {
                         build_cost = 250;
                         break;
                     default:
-                        break;                    
+                        break;
                 }
                 if (tryBuild(mission.robot_type, dir)){
                     Report report = new Report();
@@ -534,8 +534,8 @@ public strictfp class RobotPlayer {
                     report.location = current_location.add(dir);
                     report.robot_id = rc.senseRobotAtLocation(report.location).getID();
                     report_queue.add(report);
-                    active_missions.remove(0);                
-                    return;      
+                    active_missions.remove(0);
+                    return;
                 }
                 else if (rc.canMove(dir) && rc.getTeamSoup() < build_cost){
                     visited.clear();
@@ -567,7 +567,7 @@ public strictfp class RobotPlayer {
                 if (nr.getType() == RobotType.REFINERY){
                     RobotStatus rs = new RobotStatus(id);
                     rs.location = nr.getLocation();
-                    refineries.add(rs);                
+                    refineries.add(rs);
                 }
             }
         }
@@ -602,7 +602,7 @@ public strictfp class RobotPlayer {
                 report.robot_type = RobotType.REFINERY;
                 report.location = rs.location;
                 report.robot_id = rs.robot_id;
-                report_queue.add(report);  
+                report_queue.add(report);
                 return true;
             }
         }
@@ -628,7 +628,7 @@ public strictfp class RobotPlayer {
             ;
         }
         else if (distanceSquaredToNearestRefinery() > 50 && adjacentToSoup() && tryBuildRefinery()){
-            ; 
+            ;
         }
         else if (rc.getSoupCarrying() == 100 && (HQ_loc != null || refineries.size() != 0)){
             RobotStatus nearest_refinery = nearestRefinery();
@@ -646,7 +646,7 @@ public strictfp class RobotPlayer {
                     should_report = false;
                     break;
                 }
-            }     
+            }
             if (should_report){
                 Report report = new Report();
                 report.report_type = ReportType.SOUP;
@@ -657,7 +657,7 @@ public strictfp class RobotPlayer {
         }
         else if (soup_location != null){
             moveToLocationUsingBugPathing(soup_location);
-        }  
+        }
         else if (soup_deposits_public.size() > 0){
             MapLocation closest_loc = null;
             MapLocation current_location = rc.getLocation();
@@ -675,7 +675,7 @@ public strictfp class RobotPlayer {
             if (closest_loc == null)
                 return false;
             moveToLocationUsingBugPathing(closest_loc);
-        }        
+        }
         else{
             return false;
         }
@@ -740,7 +740,7 @@ public strictfp class RobotPlayer {
             min_y = max_y - 2;
         }
         MapLocation[] bounds = {new MapLocation(min_x,min_y), new MapLocation(max_x, max_y)};      
-        return bounds;  
+        return bounds;
     }
 
     static void updateExitPriority() throws GameActionException{
@@ -779,7 +779,7 @@ public strictfp class RobotPlayer {
                         dist = base_bounds[0].y;   
                         break;
                     case EAST:
-                        dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
+                        dist = rc.getMapWidth() - 1 - base_bounds[1].x;
                         break;
                 }
                 int enemy_HQ_penalty = 0;
@@ -895,7 +895,7 @@ public strictfp class RobotPlayer {
                 {
                     for (Direction dir2 : directions){
                         MapLocation candidate_landscaper_dropoff = candidate_drone_dropoff.add(dir2);
-                        if (!isInsideBase(base_bounds, candidate_landscaper_dropoff) || !candidate_landscaper_dropoff.isAdjacentTo(design_school_location) || 
+                        if (!isInsideBase(base_bounds, candidate_landscaper_dropoff) || !candidate_landscaper_dropoff.isAdjacentTo(design_school_location) ||
                                 candidate_landscaper_dropoff.equals(design_school_location) || candidate_landscaper_dropoff.equals(fulfillment_center_location)
                                 || candidate_landscaper_dropoff.equals(HQ_loc) || vaporator_locations.contains(candidate_landscaper_dropoff))
                             continue;
@@ -946,7 +946,7 @@ public strictfp class RobotPlayer {
             candidate_location = center.add(exit1);
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
             candidate_location = center.add(exit1.opposite());
-            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;   
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 1)){
             Direction hq_to_center = HQ_loc.directionTo(center);
@@ -1041,14 +1041,14 @@ public strictfp class RobotPlayer {
         // for (int x = base_bounds[0].x; x <= base_bounds[1].x; x++){
         //     for (int y = base_bounds[0].y; y <= base_bounds[1].y; y++){
         //         MapLocation loc = new MapLocation(x,y);
-        //         if (!loc.equals(HQ_loc) && rc.canSenseLocation(loc) && rc.canSenseLocation(HQ_loc) && 
+        //         if (!loc.equals(HQ_loc) && rc.canSenseLocation(loc) && rc.canSenseLocation(HQ_loc) &&
         //             Math.abs(rc.senseElevation(loc)-rc.senseElevation(HQ_loc))<= 3 &&
         //             (rc.senseRobotAtLocation(loc) == null || rc.senseRobotAtLocation(loc).getTeam() == rc.getTeam().opponent())){
         //             boolean can_build = false;
         //             for (Direction dir : directions){
         //                 MapLocation loc2 = loc.add(dir);
         //                 if (!loc2.equals(HQ_loc) && rc.canSenseLocation(loc2) &&
-        //                     Math.abs(rc.senseElevation(loc2)-rc.senseElevation(loc))<= 3 && 
+        //                     Math.abs(rc.senseElevation(loc2)-rc.senseElevation(loc))<= 3 &&
         //                     (rc.senseRobotAtLocation(loc2) == null || rc.senseRobotAtLocation(loc2).getTeam() == rc.getTeam().opponent())){
         //                     can_build = true;
         //                     break;
@@ -1062,7 +1062,7 @@ public strictfp class RobotPlayer {
         //                     best_location = loc;
         //                 }
         //             }
-        //         } 
+        //         }
         //     }
         // }
         // // System.out.println("End choose design school");
@@ -1263,7 +1263,7 @@ public strictfp class RobotPlayer {
                         candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
                         if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
                         break;
-                    default: 
+                    default:
                         break;
                 }
 
@@ -1308,7 +1308,7 @@ public strictfp class RobotPlayer {
                     default: 
                         break;
                 }
-            }    
+            }
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 1)){
             for (Direction dir : exit_priority){
@@ -2220,7 +2220,7 @@ public strictfp class RobotPlayer {
         updateMapDiscovered();
         updateMapGoalLocation();
         // updateMapSoupDeposits();
-        updateMapRobots(); 
+        updateMapRobots();
         updateDropoffLocations();
         tryBlockchain();
     }
@@ -2352,7 +2352,7 @@ public strictfp class RobotPlayer {
         } 
 
         if (exit == null) return new ArrayList<MapLocation>();
-        return getWallLocationsToExit(rc.getLocation(), exit);    
+        return getWallLocationsToExit(rc.getLocation(), exit);
     }
 
     static ArrayList<MapLocation> getWallLocationsToExit(MapLocation start, MapLocation exit) throws GameActionException{
@@ -2409,7 +2409,7 @@ public strictfp class RobotPlayer {
                 direction = direction.rotateLeft().rotateLeft();
             }
         }
-
+        
         if (clockwise.size() < counterclockwise.size())
             return clockwise;
         else
@@ -2503,7 +2503,7 @@ public strictfp class RobotPlayer {
         updateMapRobots();
 
         if (HQ_loc == null){
-            tryMove(randomDirection());        
+            tryMove(randomDirection());
             return;
         }
 
@@ -2676,7 +2676,7 @@ public strictfp class RobotPlayer {
                 if(rc.canDepositDirt(current_location.directionTo(buildLocation))){
                     rc.depositDirt(current_location.directionTo(buildLocation));
                     return;
-                } 
+                }
                 else {
                     for (Direction dir : directions){ // TO DO: Make sure that digging won't cause flooding of base
                         MapLocation dig_location = current_location.add(dir);
@@ -2711,7 +2711,6 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            
             return;
         }
 
@@ -2765,8 +2764,57 @@ public strictfp class RobotPlayer {
         
         return returnLoc;
     }
+    
+    static void attackDroneMission() throws GameActionException {
+        RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc)));
+        if(rc.getRoundNum() >= 1450 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
+        else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
+        else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
+    }
+    
+    static void droneRush() throws GameActionException {
+        Team ourTeam = rc.getTeam();
+        
+        if(rc.isCurrentlyHoldingUnit() && enemyUnitInDrone){
+            for(Direction dir : directions){
+                if(rc.canSenseLocation(rc.getLocation().add(dir)) && rc.senseFlooding(rc.getLocation().add(dir)) && rc.canDropUnit(dir)) {
+                    rc.dropUnit(dir);
+                    enemyUnitInDrone = false;
+                }
+                else;
+            }
+            MapLocation drop_location = closest_water_to_HQ;
+            if (HQ_loc != null && enemy_HQ_loc != null && closest_water_to_enemy_HQ != null &&
+                rc.getLocation().distanceSquaredTo(closest_water_to_enemy_HQ) < rc.getLocation().distanceSquaredTo(closest_water_to_HQ)){
+                drop_location = closest_water_to_enemy_HQ;
+            }
+            if (drop_location != null)
+                moveToLocationUsingBugPathing(drop_location);
+            else
+                tryMove(randomDirection());
+            return;
+        }
+        
+        RobotInfo[] nearby_robots = rc.senseNearbyRobots();
+        for(int i=0; i < nearby_robots.length; i++){
+            if(nearby_robots[i].getTeam() != ourTeam && nearby_robots[i].getType().canBePickedUp()){
+                if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.isReady() && rc.canPickUpUnit(nearby_robots[i].getID())){
+                    rc.pickUpUnit(nearby_robots[i].getID());
+                    enemyUnitInDrone = true;
+                    return;
+                }
+                else{
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), false, false);
+                    return;
+                }
+            }
+        }
+        if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20)) moveToLocationUsingBugPathing(HQ_loc);
+        else;
+    }
 
     static void tryDefaultDroneMission() throws GameActionException{
+        System.out.println(turnCount);
         // If inside base and no landscaper available, go outside
         // If inside base and landscaper available and not at drone dropoff, go to drone drop off
         // If at drone drop off and there is a landscaper available, pick and place
@@ -2776,7 +2824,12 @@ public strictfp class RobotPlayer {
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
-
+        
+        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !(rc.getLocation().isAdjacentTo(HQ_loc)) && !(rc.isCurrentlyHoldingUnit())){
+            attackDroneMission();
+            return;
+        }
+        
         Team ourTeam = rc.getTeam();
 
         MapLocation current_location = rc.getLocation();
@@ -2837,7 +2890,7 @@ public strictfp class RobotPlayer {
                         moveToLocationUsingBugPathing(center.add(dir).add(dir).add(dir).add(dir), false);
                         return;
                     }
-                }              
+                }
                 return;
             }
 
@@ -2848,7 +2901,7 @@ public strictfp class RobotPlayer {
 
             if (landscaper_dropoff != null && rc.canSenseLocation(landscaper_dropoff)){
                 RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
-                if (robot != null && robot.getType() == RobotType.LANDSCAPER && 
+                if (robot != null && robot.getType() == RobotType.LANDSCAPER &&
                         robot.getTeam() == ourTeam && rc.canPickUpUnit(robot.getID())){
                     rc.pickUpUnit(robot.getID());
                     return;
@@ -2859,7 +2912,7 @@ public strictfp class RobotPlayer {
                 MapLocation loc = current_location.add(dir);
                 if (isInsideBase(loc)){
                     RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
-                    if (robot != null && robot.getType() == RobotType.LANDSCAPER && 
+                    if (robot != null && robot.getType() == RobotType.LANDSCAPER &&
                             robot.getTeam() == ourTeam && rc.canPickUpUnit(robot.getID())){
                         rc.pickUpUnit(robot.getID());
                         return;
@@ -2879,7 +2932,7 @@ public strictfp class RobotPlayer {
                 else;
             }
             MapLocation drop_location = closest_water_to_HQ;
-            if (HQ_loc != null && enemy_HQ_loc != null && closest_water_to_enemy_HQ != null && 
+            if (HQ_loc != null && enemy_HQ_loc != null && closest_water_to_enemy_HQ != null &&
                 rc.getLocation().distanceSquaredTo(closest_water_to_enemy_HQ) < rc.getLocation().distanceSquaredTo(closest_water_to_HQ)){
                 drop_location = closest_water_to_enemy_HQ;
             }
@@ -2923,11 +2976,18 @@ public strictfp class RobotPlayer {
             if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
                 tryMove(dir);
         }
-        else moveToLocationUsingBugPathing(HQ_loc, true, false);        
+        else moveToLocationUsingBugPathing(HQ_loc, true, false);
     }
 
     static void runDeliveryDrone() throws GameActionException {
         readBlockChain();
+        
+        updateMapDiscovered();
+        updateMapGoalLocation();
+        // updateMapSoupDeposits();
+        updateMapRobots();
+        updateDropoffLocations();
+        
         Mission current_mission = new Mission();
         if (active_missions.size() > 0){
             current_mission = active_missions.get(0);
@@ -2941,7 +3001,6 @@ public strictfp class RobotPlayer {
         // updateMapSoupDeposits();
         updateMapRobots();
         updateDropoffLocations();
-
 
         switch(current_mission.mission_type){
             case SCOUT:
@@ -3004,8 +3063,8 @@ public strictfp class RobotPlayer {
                 }
                 if (enemy_HQ_loc != null && (closest_water_to_enemy_HQ == null || HQ_loc.distanceSquaredTo(ml) < HQ_loc.distanceSquaredTo(closest_water_to_enemy_HQ))){
                     closest_water_to_enemy_HQ = ml;
-                }            
-            } 
+                }
+            }
         }
     }
 
@@ -3231,7 +3290,7 @@ public strictfp class RobotPlayer {
                     Direction best_direction = null;
                     for (Direction dir : directions){
                         if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
-                            continue; 
+                            continue;
                         int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){
@@ -3518,7 +3577,7 @@ public strictfp class RobotPlayer {
         remaining_bits -= data_size - Math.max(0, -shift);
         if (shift < 0){
             message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH -1 - (remaining_bits-1) / 32] += (data << (32 - Math.max(0, -shift)) >>> (32 - Math.max(0,-shift))) << (32 - Math.max(0, -shift));
-            remaining_bits -= Math.max(0, -shift);            
+            remaining_bits -= Math.max(0, -shift);
         }
 
         return remaining_bits;
@@ -3528,7 +3587,7 @@ public strictfp class RobotPlayer {
         message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += blockchain_password << 22;
         String message_serialized = "";
         for (int i = 0; i != GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH; i++){
-            message_serialized += Integer.toString(message[i]) + "_"; 
+            message_serialized += Integer.toString(message[i]) + "_";
         }
         int hash = message_serialized.hashCode();
         message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash >>> 10;
@@ -3560,10 +3619,10 @@ public strictfp class RobotPlayer {
 
     static void updateMissionStatus(Report report){
         switch(report.robot_type){
-            case MINER:  
+            case MINER:
                 updateMissionStatus(report, miners);
                 break;
-            case REFINERY: 
+            case REFINERY:
                 updateMissionStatus(report, refineries);
                 break;
             case VAPORATOR:
@@ -3575,20 +3634,19 @@ public strictfp class RobotPlayer {
             case FULFILLMENT_CENTER:
                 updateMissionStatus(report, fulfillment_centers);
                 break;
-            case LANDSCAPER:  
+            case LANDSCAPER:
                 updateMissionStatus(report, landscapers);
                 break;
-            case DELIVERY_DRONE: 
+            case DELIVERY_DRONE:
                 updateMissionStatus(report, drones);
                 break;
             case NET_GUN:
                 updateMissionStatus(report, net_guns);
-                break;     
+                break;
             default:
-                break;   
+                break;
         }
     }
-
     static void updateRobot(Report report) throws GameActionException{
         if (report.report_type != ReportType.ROBOT && report.report_type != ReportType.NO_ROBOT)
             return;
@@ -3618,15 +3676,14 @@ public strictfp class RobotPlayer {
                     } 
                 }
             }
-        }     
-        
+        }
 
         if (report.robot_team){
             switch(report.robot_type){
-                case MINER:  
+                case MINER:
                     addRobotToList(miners, report.robot_id);
                     break;
-                case REFINERY: 
+                case REFINERY:
                     addRobotToList(refineries, report.robot_id, report.location);
                     break;
                 case VAPORATOR:
@@ -3638,15 +3695,15 @@ public strictfp class RobotPlayer {
                 case FULFILLMENT_CENTER:
                     addRobotToList(fulfillment_centers, report.robot_id, report.location);
                     break;
-                case LANDSCAPER:  
+                case LANDSCAPER:
                     addRobotToList(landscapers, report.robot_id);
                     break;
-                case DELIVERY_DRONE: 
+                case DELIVERY_DRONE:
                     addRobotToList(drones, report.robot_id);
                     break;
                 case NET_GUN:
                     addRobotToList(net_guns, report.robot_id, report.location);
-                    break;   
+                    break;
             }
         }
       
@@ -3687,18 +3744,18 @@ public strictfp class RobotPlayer {
         if (blockchain_password_hashes.contains(message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1]))
             return false;
         int pass = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22;
-        if (pass != blockchain_password) 
+        if (pass != blockchain_password)
             return false;
         int hash = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] << 10 >>> 10;
         message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] = message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] >>> 22 << 22;
         String message_serialized = "";
         for (int i = 0; i != GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH; i++){
-            message_serialized += Integer.toString(message[i]) + "_"; 
+            message_serialized += Integer.toString(message[i]) + "_";
         }
         if (hash != message_serialized.hashCode()>>>10)
             return false;
         message[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH - 1] += hash;
-        return true; 
+        return true;
     }
 
     static void readMessage(int[] message) throws GameActionException {
@@ -3738,7 +3795,7 @@ public strictfp class RobotPlayer {
                     }
                     else{
                         report.mission_type = MissionType.values()[getBitRange(message, start_bit, 5)];
-                        start_bit += 5;   
+                        start_bit += 5;
                     }
                     break;
                 case ROBOT_ID:
@@ -3755,7 +3812,7 @@ public strictfp class RobotPlayer {
                     if (report != null){
                         report.robot_id = robot_id;
                     }
-                    break;                
+                    break;
                 case LOCATION:
                     int x = getBitRange(message, start_bit, 6);
                     start_bit += 6;
@@ -3793,14 +3850,14 @@ public strictfp class RobotPlayer {
                         active_missions.add(mission);
                         mission = null;
                         on_mission = false;
-                    }    
+                    }
                     if (report != null){
                         updateFromReport(report);
                         report = null;
-                    }          
-                    report = new Report(); 
+                    }
+                    report = new Report();
                     report.report_type = ReportType.values()[getBitRange(message, start_bit, 5)];
-                    start_bit += 5;                         
+                    start_bit += 5;
                     break;
                 case ROBOT_TEAM:
                    if (report != null){
@@ -3825,14 +3882,14 @@ public strictfp class RobotPlayer {
                         active_missions.add(mission);
                         mission = null;
                         on_mission = false;
-                    }   
+                    }
                     if (report != null){
                         updateFromReport(report);
                         report = null;
-                    }   
-                    return;             
+                    }
+                    return;
                     // break;
-            }   
+            }
         }
     }
 
@@ -3843,7 +3900,7 @@ public strictfp class RobotPlayer {
             Transaction[] block = rc.getBlock(blockchain_read_index);
             for (Transaction msg : block){
                 readMessage(msg.getMessage());
-            }   
+            }
             blockchain_read_index++;
         }
     }
@@ -3854,7 +3911,7 @@ public strictfp class RobotPlayer {
         mission_bits += (5 + 15)*mission.robot_ids.size(); // Robot ID #bits
         mission_bits += 5 + 12; // Location # bits
         mission_bits += 5; // End message label
-        mission_bits += 10; // Password 
+        mission_bits += 10; // Password
         mission_bits += 22; // hash
         return mission_bits;
     }
@@ -3902,11 +3959,11 @@ public strictfp class RobotPlayer {
             for (int id : mission.robot_ids){
                 if (rs.robot_id == id){
                     rs.missions.clear();
-                    rs.missions.add(mission);     
-                    found = true;                       
-                }                                        
-            }  
-        } 
+                    rs.missions.add(mission);
+                    found = true;
+                }
+            }
+        }
         return found;
     }
 
@@ -3952,7 +4009,7 @@ public strictfp class RobotPlayer {
                     remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
                     message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
                     continue;
-                } 
+                }
 
                 remaining_bits = addToMessage(message, remaining_bits, mission.mission_type.ordinal(), Label.MISSION_TYPE.ordinal(), 5);
                 for (int id : mission.robot_ids){
@@ -3990,7 +4047,7 @@ public strictfp class RobotPlayer {
 
             while(i < report_queue.size()){
                 report = report_queue.get(i);
-                int report_bits = 0; 
+                int report_bits = 0;
 
                 // Check SIZE
                 // report_bits += 5 + 5; // Data Type Tag #bits Mission type #bits
@@ -4011,14 +4068,14 @@ public strictfp class RobotPlayer {
                     remaining_bits = 32*GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH;
                     message = new int[GameConstants.BLOCKCHAIN_TRANSACTION_LENGTH];
                     continue;
-                } 
+                }
 
                 remaining_bits = addToMessage(message, remaining_bits, report.report_type.ordinal(), Label.REPORT_TYPE.ordinal(), 5);
                 if (report.report_type == ReportType.MISSION_STATUS){
                     remaining_bits = addToMessage(message, remaining_bits, report.robot_type.ordinal(), Label.ROBOT_TYPE.ordinal(), 4);
                     remaining_bits = addToMessage(message, remaining_bits, report.robot_id, Label.ROBOT_ID.ordinal(), 15);
-                    remaining_bits = addToMessage(message, remaining_bits, report.mission_type.ordinal(), Label.MISSION_TYPE.ordinal(), 5); 
-                    remaining_bits = addToMessage(message, remaining_bits, report.successful ? 1:0, Label.MISSION_SUCCESSFUL.ordinal(), 1); 
+                    remaining_bits = addToMessage(message, remaining_bits, report.mission_type.ordinal(), Label.MISSION_TYPE.ordinal(), 5);
+                    remaining_bits = addToMessage(message, remaining_bits, report.successful ? 1:0, Label.MISSION_SUCCESSFUL.ordinal(), 1);
                 }
                 else if (report.report_type == ReportType.ROBOT){
                     remaining_bits = addToMessage(message, remaining_bits, report.robot_id, Label.ROBOT_ID.ordinal(), 15);
@@ -4067,7 +4124,6 @@ public strictfp class RobotPlayer {
         Unsure what is needed (I would assume the location of soup and location of refinery/HQ)
     DEFAULT
         Move randomly looking for soup
-
  LANDSCAPERS:
     BUILD WALL
         Would need location to move to

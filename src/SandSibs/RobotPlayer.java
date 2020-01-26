@@ -2564,12 +2564,7 @@ public strictfp class RobotPlayer {
     }
     
     static void attackDroneMission() throws GameActionException {
-<<<<<<< HEAD
-        RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc)));
         if(rc.getRoundNum() >= 1650 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
-=======
-        if(rc.getRoundNum() >= 1450 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
->>>>>>> 826985d7fe799781a4353b12dc234bff9d20dd2b
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
         else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
     }
@@ -2621,12 +2616,8 @@ public strictfp class RobotPlayer {
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
-        
-<<<<<<< HEAD
-        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !(rc.getLocation().isAdjacentTo(HQ_loc)) && !(rc.isCurrentlyHoldingUnit())){
-=======
-        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation()) && !(rc.isCurrentlyHoldingUnit())){
->>>>>>> 826985d7fe799781a4353b12dc234bff9d20dd2b
+    
+        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation()) && !(rc.isCurrentlyHoldingUnit())){
             attackDroneMission();
             return;
         }

@@ -398,6 +398,7 @@ public strictfp class RobotPlayer {
     static void tryBuildBaseMission() throws GameActionException {
         if (HQ_loc == null)
             return;
+
         MapLocation location = null;
         RobotType robot_type = null;
 
@@ -417,7 +418,6 @@ public strictfp class RobotPlayer {
             rc.disintegrate(); // TO DO: Make sure this isn't going to screw us somehow
             return;
         }
-
         MapLocation current_location = rc.getLocation();
 
         if (current_location.equals(location)){
@@ -427,6 +427,11 @@ public strictfp class RobotPlayer {
             }
             // TO DO: Need to do something if stuck
             visited.clear();
+            return;
+        }
+        if (current_location.isAdjacentTo(location) && rc.canSenseLocation(location) &&
+                rc.canSenseLocation(rc.getLocation()) && Math.abs(rc.senseElevation(location) - rc.senseElevation(rc.getLocation())) > 3){
+            tryMineMission(); // TO DO: Need to change this probably
             return;
         }
         for (Direction dir : directions){
@@ -467,7 +472,12 @@ public strictfp class RobotPlayer {
             }
         }
         MapLocation[] base_bounds = getBaseBounds();
-        moveToLocationUsingBugPathing(location, base_bounds);
+        if (isInsideBase(base_bounds, rc.getLocation())){
+            moveToLocationUsingBugPathing(location, base_bounds);
+        }
+        else {
+            moveToLocationUsingBugPathing(location);
+        }
     }   
 
     static void tryBuildMission(Mission mission) throws GameActionException {
@@ -713,21 +723,21 @@ public strictfp class RobotPlayer {
         int map_width = rc.getMapWidth();
         int map_height = rc.getMapHeight();
 
-        if (min_x < 0){
-            max_x -= min_x;
+        if (min_x < 2){
             min_x = 0;
+            max_x = min_x + 2;
         }
-        else if (max_x >= map_width){
-            min_x -= max_x - map_width + 1;
+        else if (max_x >= map_width - 2){
             max_x = map_width - 1;
+            min_x = max_x - 2;
         }
-        if (min_y < 0){
-            max_y -= min_y;
+        if (min_y < 2){
             min_y = 0;
+            max_y = min_y + 2;
         }
-        else if (max_y >= map_height){
-            min_y -= max_y - map_height + 1;
+        else if (max_y >= map_height - 2){
             max_y = map_height - 1;
+            min_y = max_y - 2;
         }
         MapLocation[] bounds = {new MapLocation(min_x,min_y), new MapLocation(max_x, max_y)};      
         return bounds;  
@@ -859,7 +869,6 @@ public strictfp class RobotPlayer {
     }
 
     static void updateDropoffLocations() throws GameActionException{
-        System.out.println("Starting dropoffs. FC: " + drone_dropoff + " DS: " + landscaper_dropoff);
         if (HQ_loc == null || exit_priority == null || design_schools.size() == 0 || fulfillment_centers.size() == 0 || (landscaper_dropoff != null && drone_dropoff != null && num_vaporators_last == vaporators.size())){
             return;
         }
@@ -880,7 +889,9 @@ public strictfp class RobotPlayer {
         for (Direction dir : exit_priority){
             MapLocation[] adjacent_to_exit = {center.add(dir), center.add(dir.rotateLeft()), center.add(dir.rotateRight())};
             for (MapLocation candidate_drone_dropoff : adjacent_to_exit){
-                if (candidate_drone_dropoff.isAdjacentTo(fulfillment_center_location) && !candidate_drone_dropoff.equals(fulfillment_center_location) && !candidate_drone_dropoff.equals(design_school_location) && !vaporator_locations.contains(candidate_drone_dropoff))
+                if (candidate_drone_dropoff.isAdjacentTo(fulfillment_center_location) && !candidate_drone_dropoff.equals(HQ_loc) &&
+                        !candidate_drone_dropoff.equals(fulfillment_center_location) && !candidate_drone_dropoff.equals(design_school_location) &&
+                        !vaporator_locations.contains(candidate_drone_dropoff))
                 {
                     for (Direction dir2 : directions){
                         MapLocation candidate_landscaper_dropoff = candidate_drone_dropoff.add(dir2);
@@ -938,7 +949,37 @@ public strictfp class RobotPlayer {
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;   
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 1)){
-            ;
+            Direction hq_to_center = HQ_loc.directionTo(center);
+            Direction preferred_direction = hq_to_center.rotateRight().rotateRight();
+            if (preferred_direction.getDeltaX()*(rc.getMapWidth()/2 - HQ_loc.x) <= 0 && preferred_direction.getDeltaY()*(rc.getMapHeight()/2 - HQ_loc.y) <= 0){
+                preferred_direction = preferred_direction.opposite();
+            }
+
+            MapLocation candidate_location = HQ_loc.add(preferred_direction);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = HQ_loc.add(preferred_direction.opposite());
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = HQ_loc.add(preferred_direction).add(hq_to_center).add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = HQ_loc.add(preferred_direction).add(hq_to_center).add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;  
+            candidate_location = HQ_loc.add(hq_to_center).add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;           
+            candidate_location = HQ_loc.add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location; 
+            for (Direction dir : exit_priority){
+                if (preferred_direction == dir){
+                    preferred_direction = dir.opposite();
+                    break;
+                }
+                else if (preferred_direction == dir.opposite()){
+                    break;
+                }
+            }   
+            candidate_location = HQ_loc.add(preferred_direction).add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
+            candidate_location = HQ_loc.add(preferred_direction.opposite()).add(hq_to_center);
+            if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;                             
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 2)){
             Direction exit1 = exit_priority.get(0);
@@ -982,7 +1023,6 @@ public strictfp class RobotPlayer {
             candidate_location = HQ_loc.translate(2*dx1 + 2*dx2, 2*dx1 + 2*dy2);
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
         }
-
 
         // if centered
             // Try diagonal near best 2 exits (1)
@@ -1271,7 +1311,310 @@ public strictfp class RobotPlayer {
             }    
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 1)){
-            ;
+            for (Direction dir : exit_priority){
+                int design_school_rotated_base_index = rotateBaseTileIndex(design_school_base_index, dir);
+                int hq_rotated_base_index = rotateBaseTileIndex(hq_base_index, dir);
+                switch(10*hq_rotated_base_index + design_school_rotated_base_index){
+                    case 10: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 12: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 13: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 15: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 16: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 18: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 30:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 32:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 34:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 35:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 36:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(8, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(7, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 38:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(7, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(6, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 50:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 52:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 53:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 54:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 56:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(7, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(8, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 58:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(6, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(7, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 73:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 74:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 75:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 76:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 78:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    default: 
+                        break;
+                }
+            }
+            for (Direction dir : exit_priority){
+                int design_school_rotated_base_index = rotateBaseTileIndex(design_school_base_index, dir);
+                int hq_rotated_base_index = rotateBaseTileIndex(hq_base_index, dir);
+                switch(10*hq_rotated_base_index + design_school_rotated_base_index){
+                    case 17: 
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;  
+                    case 31:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 32:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 34:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 35:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 37:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 38:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 50:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 51:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 53:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 54:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 56:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 57:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 70:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(2, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 71:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 72:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(4, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(0, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                    case 74:
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(1, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(3, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        candidate_location = getLocationFromBaseTileIndex(rotateBaseTileIndex(5, mirrorDirectionAboutNorth(dir)));
+                        if (canBuildFulfillmentCenterAtLocation(candidate_location)) return candidate_location;
+                        break;
+                }
+            }
         }
         else if (HQ_loc.isWithinDistanceSquared(center, 2)){
             for (Direction dir : exit_priority){
@@ -2073,6 +2416,85 @@ public strictfp class RobotPlayer {
             return counterclockwise;
     }
 
+    static boolean tryBuryBuilding(MapLocation loc) throws GameActionException{
+        if (rc.canSenseLocation(loc)){
+            RobotInfo robot = rc.senseRobotAtLocation(loc);
+            return tryBuryBuilding(robot);
+        }
+        return false;
+    }
+    static boolean tryBuryBuilding(RobotInfo robot) throws GameActionException{
+        if (robot == null){
+            return false;
+        }
+        if (rc.getLocation().isAdjacentTo(robot.getLocation()) && rc.canDepositDirt(rc.getLocation().directionTo(robot.getLocation()))){
+            rc.depositDirt(rc.getLocation().directionTo(robot.getLocation()));
+            return true;
+        }
+        if (rc.getLocation().isAdjacentTo(robot.getLocation())){
+            for (Direction dir : directions){
+                if (rc.canSenseLocation(rc.getLocation().add(dir))){
+                    RobotInfo robot_at_dig_location = rc.senseRobotAtLocation(rc.getLocation().add(dir));
+                    if (robot_at_dig_location != null && robot_at_dig_location.getTeam() == rc.getTeam().opponent() &&
+                            robot_at_dig_location.getType().isBuilding()){
+                        continue;
+                    }
+                }
+                if (rc.canDigDirt(dir)){
+                    rc.digDirt(dir);
+                    return true;
+                }
+            }
+        }
+        moveToLocationUsingBugPathing(robot.getLocation());
+        return !rc.isReady();
+    }
+
+    static boolean tryUnburyBuilding(MapLocation loc) throws GameActionException{
+        if (rc.canSenseLocation(loc)){
+            RobotInfo robot = rc.senseRobotAtLocation(loc);
+            return tryUnburyBuilding(robot);
+        }
+        return false;
+    }
+
+    static boolean tryUnburyBuilding(RobotInfo robot) throws GameActionException{
+        if (robot != null && robot.getDirtCarrying() > 0){
+            if (rc.getLocation().isAdjacentTo(robot.getLocation()) && rc.canDigDirt(rc.getLocation().directionTo(robot.getLocation()))){
+                rc.digDirt(rc.getLocation().directionTo(robot.getLocation()));
+                return true;
+            }
+            if (rc.getLocation().isAdjacentTo(robot.getLocation())){
+                RobotInfo[] enemy_robots = rc.senseNearbyRobots(2, rc.getTeam().opponent());
+                for (RobotInfo r : enemy_robots){
+                    if ((r.getType() == RobotType.DESIGN_SCHOOL || r.getType() == RobotType.FULFILLMENT_CENTER || 
+                            r.getType() == RobotType.NET_GUN) && rc.canDepositDirt(rc.getLocation().directionTo(r.getLocation()))){
+                        rc.depositDirt(rc.getLocation().directionTo(r.getLocation()));
+                        return true;
+                    }
+                }
+                for (Direction dir : directions){
+                    if (isOnWall(rc.getLocation().add(dir)) && rc.canDepositDirt(dir)){
+                        rc.depositDirt(dir);
+                        return true;
+                    }
+                }
+                for (Direction dir : directions){
+                    if (rc.canDepositDirt(dir)){
+                        rc.depositDirt(dir);
+                        return true;
+                    }
+                }
+            }
+            if (!rc.getLocation().isAdjacentTo(robot.getLocation())){
+                moveToLocationUsingBugPathing(robot.getLocation());
+                if (!rc.isReady())
+                    return true;
+            }
+        }  
+        return false;      
+    }
+
     static void runLandscaper() throws GameActionException {
         updateMapDiscovered();
         updateMapGoalLocation();
@@ -2091,6 +2513,122 @@ public strictfp class RobotPlayer {
 
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
+
+        if(tryUnburyBuilding(HQ_loc)){
+            return;
+        }
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+        RobotInfo[] enemy_robots_in_base = rc.senseNearbyRobots(center, 8, rc.getTeam().opponent());
+        for (RobotInfo robot : enemy_robots_in_base){
+            if (robot.getType().isBuilding()){
+                if (tryBuryBuilding(robot)){
+                    return;
+                }
+            }
+        }
+
+        RobotInfo[] robots_in_base = rc.senseNearbyRobots(center, 2, rc.getTeam());
+        for (RobotInfo robot : robots_in_base){
+            if (robot.getType().isBuilding()){
+                if (tryUnburyBuilding(robot)){
+                    return;
+                }
+            }
+        }
+        if (rc.canSenseLocation(HQ_loc)){
+            int hq_elevation = rc.senseElevation(HQ_loc);
+            for (Direction dir : Direction.allDirections()){
+                if (rc.canSenseLocation(center.add(dir))){
+                    RobotInfo robot = rc.senseRobotAtLocation(center.add(dir));
+                    if (robot != null && robot.getTeam() == rc.getTeam() && robot.getType().isBuilding()){
+                        continue;
+                    }
+                    int elevation = rc.senseElevation(center.add(dir));
+                    if (Math.abs(hq_elevation - elevation) <= 1){
+                        continue;
+                    }
+
+                    if (elevation > hq_elevation){
+                        if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDigDirt(rc.getLocation().directionTo(center.add(dir)))){
+                            rc.digDirt(rc.getLocation().directionTo(center.add(dir)));
+                            return;
+                        }
+                        if (rc.getLocation().isAdjacentTo(center.add(dir))){
+                            for (Direction dir2 : directions){
+                                if (isOnWall(rc.getLocation().add(dir2)) && rc.canDepositDirt(dir2)){
+                                    rc.depositDirt(dir2);
+                                    return;
+                                }
+                            }
+                            for (Direction dir2 : directions){
+                                if (rc.canSenseLocation(rc.getLocation().add(dir2))){
+                                    robot = rc.senseRobotAtLocation(center.add(dir2));
+                                    int elevation2 = rc.senseElevation(center.add(dir2));
+                                    if ((robot != null && rc.getTeam() == robot.getTeam() && robot.getType().isBuilding()) ||
+                                            (isInsideBase(center.add(dir2)) && elevation2 - hq_elevation > 1)){
+                                        continue;
+                                    }
+                                    if (rc.canDepositDirt(dir2)){
+                                        rc.depositDirt(dir2);
+                                        return;
+                                    }
+                                }
+                            }                            
+                        }
+                        else{
+                            moveToLocationUsingBugPathing(center.add(dir));
+
+                            if (!rc.isReady()){
+                                return;
+                            }
+                        }
+
+                    }
+                    else {
+                        if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDepositDirt(rc.getLocation().directionTo(center.add(dir)))){
+                            rc.depositDirt(rc.getLocation().directionTo(center.add(dir)));
+                            return;
+                        }
+                        if (rc.getLocation().isAdjacentTo(center.add(dir))){
+                            for (Direction dir2 : directions){
+                                if (!isOnWall(rc.getLocation().add(dir2)) && !isInsideBase(rc.getLocation().add(dir2)) && rc.canDigDirt(dir2)){
+                                    rc.digDirt(dir2);
+                                    return;
+                                }
+                            }
+                            for (Direction dir2 : directions){
+                                if (rc.canSenseLocation(rc.getLocation().add(dir2))){
+                                    robot = rc.senseRobotAtLocation(center.add(dir2));
+                                    int elevation2 = rc.senseElevation(center.add(dir2));
+                                    if ((robot != null && rc.getTeam() == robot.getTeam().opponent() && robot.getType().isBuilding()) ||
+                                            (isInsideBase(center.add(dir2)) && hq_elevation - elevation2 > 1)){
+                                        continue;
+                                    }
+                                    if (rc.canDigDirt(dir2)){
+                                        rc.digDirt(dir2);
+                                        return;
+                                    }
+                                }
+                            }                            
+                        }
+                        else{
+                            moveToLocationUsingBugPathing(center.add(dir));
+
+                            if (!rc.isReady()){
+                                return;
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+
+
+        // For all inside base that do not have a friendly building, check elevation is +/- 3 of HQ
+
+        // Sense if any of inside walls need to be dug and unbury if so
 
         MapLocation current_location = rc.getLocation();
         // If about to dig while standing near drone drop off location, keep moving first

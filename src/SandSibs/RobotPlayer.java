@@ -2684,7 +2684,7 @@ public strictfp class RobotPlayer {
     }
     
     static void attackDroneMission() throws GameActionException {
-        if(rc.getRoundNum() >= 1450 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
+        if(rc.getRoundNum() >= 1650 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
         else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
     }
@@ -2736,8 +2736,10 @@ public strictfp class RobotPlayer {
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
+    
+        if(rc.getLocation().isWithinDistanceSquared(HQ_loc,18) && !(rc.getLocation().isWithinDistanceSquared(HQ_loc,10)) && rc.getLocation().distanceSquaredTo(HQ_loc) != 16 && rc.getLocation().distanceSquaredTo(HQ_loc) != 17) return;
         
-        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation()) && !(rc.isCurrentlyHoldingUnit())){
+        if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation())){
             attackDroneMission();
             return;
         }

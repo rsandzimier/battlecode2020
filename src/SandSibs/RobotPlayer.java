@@ -2617,7 +2617,7 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
         
-        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !(rc.getLocation().isAdjacentTo(HQ_loc)) && !(rc.isCurrentlyHoldingUnit())){
+        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation()) && !(rc.isCurrentlyHoldingUnit())){
             attackDroneMission();
             return;
         }

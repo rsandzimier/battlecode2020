@@ -411,7 +411,7 @@ public strictfp class RobotPlayer {
             robot_type = RobotType.FULFILLMENT_CENTER;
         }
         else if (vaporators.size() < 4){ // TO DO: Check that enough landscapers are working on wall and that no enemy units are in base
-            location = chooseVaporatorLocation(design_schools.get(0).location, fulfillment_centers.get(0).location);
+            location = chooseVaporatorLocation();
             robot_type = RobotType.VAPORATOR;
         }
         if (location == null || robot_type == null) {
@@ -467,11 +467,24 @@ public strictfp class RobotPlayer {
                     return;
                 if (tryMine())
                     return;
+                MapLocation[] base_bounds = getBaseBounds();
+                MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+                if (rc.isReady() && rc.getTeamSoup() >= build_cost){
+                    RobotInfo[] nearby_robots = rc.senseNearbyRobots(center, 2, rc.getTeam());
+                    for (RobotInfo robot : nearby_robots){
+                        if (robot.getType() == RobotType.MINER){
+                            rc.disintegrate(); // TO DO: Verify this doesn't break anything.
+                            return;
+                        }
+                    }
 
+                }
                 return; // TO DO: Anything else productive to do if miner is in position to build building, but doesn't have enough soup and there is nothing to mine/refine?
             }
         }
         MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+
         if (isInsideBase(base_bounds, rc.getLocation())){
             moveToLocationUsingBugPathing(location, base_bounds);
         }
@@ -1036,7 +1049,7 @@ public strictfp class RobotPlayer {
         return false;
     }
 
-    static MapLocation chooseVaporatorLocation(MapLocation design_school_location, MapLocation fulfillment_center_location) throws GameActionException{
+    static MapLocation chooseVaporatorLocation() throws GameActionException{
         if (design_schools.size() == 0 || fulfillment_centers.size() == 0 || landscaper_dropoff == null || drone_dropoff == null) return null;
         MapLocation[] base_bounds = getBaseBounds();
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
@@ -2359,6 +2372,24 @@ public strictfp class RobotPlayer {
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
 
+        // If at landscaper_dropoff && adjacent to miner && vaporator location not adjacent to miner and < 4 vaps
+        if (landscaper_dropoff != null && rc.getLocation().equals(landscaper_dropoff) && vaporators.size()<4){
+            RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
+            MapLocation miner_loc = null;
+            for (RobotInfo nr : nearby_robots){
+                if (nr.getType() == RobotType.MINER){
+                    miner_loc = nr.getLocation();
+                    break;
+                }
+            }
+            if (miner_loc != null){
+                MapLocation vap_loc = chooseVaporatorLocation();
+                if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc))){
+                    rc.disintegrate(); // TO DO: Verify this isn't breaking anything
+                }
+            }
+        }
+
         if(tryUnburyBuilding(HQ_loc)){
             return;
         }
@@ -2607,7 +2638,6 @@ public strictfp class RobotPlayer {
         if (isInsideBase(current_location) && target_wall != null && rc.canSenseLocation(target_wall) &&
              Math.abs(rc.senseElevation(target_wall) - rc.senseElevation(rc.getLocation())) > 3
              && landscaper_dropoff != null){
-            moveToLocationUsingBugPathing(landscaper_dropoff);
         }
         else if (target_wall != null){
             moveToLocationUsingBugPathing(target_wall);

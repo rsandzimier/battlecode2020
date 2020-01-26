@@ -2245,7 +2245,7 @@ public strictfp class RobotPlayer {
                         continue;
                     }
                 }
-                if (rc.canDigDirt(dir)){
+                if (rc.canDigDirt(dir) && !willFloodBase(rc.getLocation().add(dir))){
                     rc.digDirt(dir);
                     return true;
                 }
@@ -2300,6 +2300,46 @@ public strictfp class RobotPlayer {
         return false;      
     }
 
+    static boolean willFloodBase(MapLocation dig_loc) throws GameActionException {
+        if (!rc.canSenseLocation(dig_loc) || rc.senseFlooding(dig_loc)){
+            return false;
+        }
+        int elevation = rc.senseElevation(dig_loc);
+        boolean will_flood_dig_loc = false;
+        for (Direction dir : directions){
+            MapLocation loc = dig_loc.add(dir);
+            if (rc.canSenseLocation(loc) && rc.senseFlooding(loc) && GameConstants.getWaterLevel(rc.getRoundNum()) >= elevation - 1){ // TO DO: Consider adding buffer to round number to check for flooding over some time horizon
+                will_flood_dig_loc = true;
+                break;
+            }
+        }
+        if (!will_flood_dig_loc)
+            return false;
+        MapLocation[] base_bounds = getBaseBounds();
+        if (isInsideBase(base_bounds, dig_loc)){
+            return true;
+        }
+        HashSet<MapLocation> new_flooded_locs = new HashSet<MapLocation>();
+        new_flooded_locs.add(dig_loc);
+        return willFloodBase(dig_loc, new_flooded_locs, base_bounds);
+    }
+
+    static boolean willFloodBase(MapLocation loc_prev, HashSet<MapLocation> flooded_locs, MapLocation[] base_bounds) throws GameActionException {
+        for (Direction dir : directions){
+            MapLocation loc = loc_prev.add(dir);
+            if (rc.canSenseLocation(loc) && !rc.senseFlooding(loc) && rc.senseElevation(loc) <= GameConstants.getWaterLevel(rc.getRoundNum()) && !flooded_locs.contains(loc)){
+                flooded_locs.add(loc);
+                if(isInsideBase(base_bounds, loc) || willFloodBase(loc, flooded_locs, base_bounds)){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
+
+
     static void runLandscaper() throws GameActionException {
         updateMapDiscovered();
         updateMapGoalLocation();
@@ -2318,7 +2358,6 @@ public strictfp class RobotPlayer {
 
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
-
         if(tryUnburyBuilding(HQ_loc)){
             return;
         }
@@ -2341,7 +2380,16 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        if (rc.canSenseLocation(HQ_loc)){
+        boolean wall_flooded = false;
+        for (MapLocation wl : wallLocation){
+            if (wl == null) 
+                break;
+            if (rc.canSenseLocation(wl) && rc.senseFlooding(wl)){
+                wall_flooded = true;
+                break;
+            }
+        }
+        if (!wall_flooded && rc.canSenseLocation(HQ_loc)){
             int hq_elevation = rc.senseElevation(HQ_loc);
             for (Direction dir : Direction.allDirections()){
                 if (rc.canSenseLocation(center.add(dir))){
@@ -2355,7 +2403,7 @@ public strictfp class RobotPlayer {
                     }
 
                     if (elevation > hq_elevation){
-                        if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDigDirt(rc.getLocation().directionTo(center.add(dir)))){
+                        if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDigDirt(rc.getLocation().directionTo(center.add(dir))) && !willFloodBase(center.add(dir))){
                             rc.digDirt(rc.getLocation().directionTo(center.add(dir)));
                             return;
                         }
@@ -2397,7 +2445,7 @@ public strictfp class RobotPlayer {
                         }
                         if (rc.getLocation().isAdjacentTo(center.add(dir))){
                             for (Direction dir2 : directions){
-                                if (!isOnWall(rc.getLocation().add(dir2)) && !isInsideBase(rc.getLocation().add(dir2)) && rc.canDigDirt(dir2)){
+                                if (!isOnWall(rc.getLocation().add(dir2)) && !isInsideBase(rc.getLocation().add(dir2)) && rc.canDigDirt(dir2) && !willFloodBase(rc.getLocation().add(dir2))){
                                     rc.digDirt(dir2);
                                     return;
                                 }
@@ -2410,7 +2458,7 @@ public strictfp class RobotPlayer {
                                             (isInsideBase(center.add(dir2)) && hq_elevation - elevation2 > 1)){
                                         continue;
                                     }
-                                    if (rc.canDigDirt(dir2)){
+                                    if (rc.canDigDirt(dir2) && !willFloodBase(rc.getLocation().add(dir2))){
                                         rc.digDirt(dir2);
                                         return;
                                     }
@@ -2445,7 +2493,16 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            if (jam){
+
+            boolean clear_exit = (drone_dropoff == null || !current_location.isAdjacentTo(drone_dropoff));
+            if (!clear_exit && rc.canSenseLocation(drone_dropoff)){
+                RobotInfo robot = rc.senseRobotAtLocation(drone_dropoff);
+                if (robot != null && robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam()){
+                    clear_exit = true;
+                }
+            }
+
+            if (jam && clear_exit){
                 if (wall_locs.size() > 1){
                     Direction dir = wall_locs.get(0).directionTo(wall_locs.get(1)).opposite();
                     if (!isOnWall(current_location.add(dir)) && isOnWall(current_location.add(dir.rotateRight().rotateRight()))){
@@ -2479,7 +2536,7 @@ public strictfp class RobotPlayer {
                 else {
                     for (Direction dir : directions){ // TO DO: Make sure that digging won't cause flooding of base
                         MapLocation dig_location = current_location.add(dir);
-                        if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir)){
+                        if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir) && !willFloodBase(rc.getLocation().add(dir))){
                             rc.digDirt(dir);
                             return;
                         }
@@ -2504,7 +2561,7 @@ public strictfp class RobotPlayer {
                 }
                 for (Direction dir : directions){ // TO DO: Make sure that digging won't cause flooding of base
                     MapLocation dig_location = current_location.add(dir);
-                    if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir)){
+                    if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir) && !willFloodBase(dig_location)){
                         rc.digDirt(dir);
                         return;
                     }

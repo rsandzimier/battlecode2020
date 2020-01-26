@@ -5,3 +5,4 @@ matches/
 *.zip
 .DS_Store
 src/.DS_Store
+*.log

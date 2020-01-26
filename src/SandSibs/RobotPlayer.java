@@ -897,7 +897,8 @@ public strictfp class RobotPlayer {
                         MapLocation candidate_landscaper_dropoff = candidate_drone_dropoff.add(dir2);
                         if (!isInsideBase(base_bounds, candidate_landscaper_dropoff) || !candidate_landscaper_dropoff.isAdjacentTo(design_school_location) ||
                                 candidate_landscaper_dropoff.equals(design_school_location) || candidate_landscaper_dropoff.equals(fulfillment_center_location)
-                                || candidate_landscaper_dropoff.equals(HQ_loc) || vaporator_locations.contains(candidate_landscaper_dropoff))
+                                || candidate_landscaper_dropoff.equals(HQ_loc) || vaporator_locations.contains(candidate_landscaper_dropoff) ||
+                                (!candidate_landscaper_dropoff.isAdjacentTo(HQ_loc) && !candidate_drone_dropoff.isAdjacentTo(HQ_loc)))
                             continue;
                         if (separatedVaporators(center, design_school_location, fulfillment_center_location, candidate_drone_dropoff, candidate_landscaper_dropoff)){
                             if (drone_dropoff_separated_vaporators == null || landscaper_dropoff_separated_vaporators == null){
@@ -1023,49 +1024,6 @@ public strictfp class RobotPlayer {
             candidate_location = HQ_loc.translate(2*dx1 + 2*dx2, 2*dx1 + 2*dy2);
             if (canBuildDesignSchoolAtLocation(candidate_location)) return candidate_location;
         }
-
-        // if centered
-            // Try diagonal near best 2 exits (1)
-            // Try diagonal near best exit (1)
-            // Try diagonal near other exit (1)
-            // Try last diagonal (2)
-            // Try edge 90 degrees from best exit (2)
-            // Try edge 90 degrees from other exit (2)
-
-
-
-        // MapLocation[] base_bounds = getBaseBounds();
-        // double best_score = 0;
-        // MapLocation best_location = null;
-        // // System.out.println("Start choose design school");
-        // for (int x = base_bounds[0].x; x <= base_bounds[1].x; x++){
-        //     for (int y = base_bounds[0].y; y <= base_bounds[1].y; y++){
-        //         MapLocation loc = new MapLocation(x,y);
-        //         if (!loc.equals(HQ_loc) && rc.canSenseLocation(loc) && rc.canSenseLocation(HQ_loc) &&
-        //             Math.abs(rc.senseElevation(loc)-rc.senseElevation(HQ_loc))<= 3 &&
-        //             (rc.senseRobotAtLocation(loc) == null || rc.senseRobotAtLocation(loc).getTeam() == rc.getTeam().opponent())){
-        //             boolean can_build = false;
-        //             for (Direction dir : directions){
-        //                 MapLocation loc2 = loc.add(dir);
-        //                 if (!loc2.equals(HQ_loc) && rc.canSenseLocation(loc2) &&
-        //                     Math.abs(rc.senseElevation(loc2)-rc.senseElevation(loc))<= 3 &&
-        //                     (rc.senseRobotAtLocation(loc2) == null || rc.senseRobotAtLocation(loc2).getTeam() == rc.getTeam().opponent())){
-        //                     can_build = true;
-        //                     break;
-        //                 }
-        //             }
-        //             if (can_build){
-        //                 MapLocation fulfillment_center_location = chooseFulfillmentCenterLocation(loc);
-        //                 double score = baseLayoutScore(loc, fulfillment_center_location);
-        //                 if (score > best_score){
-        //                     best_score = score;
-        //                     best_location = loc;
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-        // // System.out.println("End choose design school");
 
         return null;
     }
@@ -1981,59 +1939,6 @@ public strictfp class RobotPlayer {
         // 3 4 5
         // 6 7 8
 
-        // If centered
-            // in order of preferred direction 
-                // re-orient
-                // if DS at 0
-                    // try 5, 2
-                // if DS at 1
-                    // try 8
-                // if DS at 2
-                    // try 8
-                // if DS at 6
-                    // try 5, 8
-                // if DS at 7
-                    // try 2
-                // if DS at 8
-                    // try 2
-            // in order of preferred direction
-                // re-orient
-                // if DS at 0
-                    // try 8, 7
-                // if DS at 1
-                    // try 7
-                // if DS at 2
-                    // try 7
-                // if DS at 6
-                    // try 2, 1
-                // if DS at 7
-                    // try 1
-                // if DS at 8
-                    // try 1
-
-
-
-        // MapLocation[] base_bounds = getBaseBounds();
-        // double best_score = 0;
-        // MapLocation best_location = null;
-        // // System.out.println("Start choose fulfillment center");
-
-        // for (int x = base_bounds[0].x; x <= base_bounds[1].x; x++){
-        //     for (int y = base_bounds[0].y; y <= base_bounds[1].y; y++){
-        //         MapLocation loc = new MapLocation(x,y);
-        //         if (!loc.equals(HQ_loc) && !loc.equals(design_school_location) && rc.canSenseLocation(loc) &&
-        //             (rc.senseRobotAtLocation(loc) == null || rc.senseRobotAtLocation(loc).getTeam() == rc.getTeam().opponent())){
-        //             double score = baseLayoutScore(design_school_location, loc);
-        //             if (score > best_score){
-        //                 best_score = score;
-        //                 best_location = loc;
-        //             }                
-        //         } 
-        //     }
-        // }
-
-        // // System.out.println("End choose fulfillment center");
-
         return null;
     }
 
@@ -2074,117 +1979,6 @@ public strictfp class RobotPlayer {
         }
         return closest_loc;
     }
-
-    // static double baseLayoutScore(MapLocation design_school_location, MapLocation fulfillment_center_location) throws GameActionException{
-    //     MapLocation[] base_bounds = getBaseBounds();
-    //     double best_score = 0;
-    //     // System.out.println("Start base layout score "+ Clock.getBytecodeNum());
-    //     for (Direction dir1 : directions){
-    //         MapLocation landscaper_dropoff = design_school_location.add(dir1);
-    //         if (landscaper_dropoff.equals(HQ_loc) || landscaper_dropoff.equals(fulfillment_center_location) || !isInsideBase(base_bounds, landscaper_dropoff)){
-    //             continue;
-    //         }
-    //         for (Direction dir2 : directions){
-    //             MapLocation drone_dropoff = fulfillment_center_location.add(dir2);
-    //             if (drone_dropoff.equals(HQ_loc) || drone_dropoff.equals(fulfillment_center_location) ||
-    //                 drone_dropoff.equals(landscaper_dropoff) || !isInsideBase(base_bounds, drone_dropoff)){
-    //                 continue;
-    //             }
-    //             double score = baseLayoutScoreFullInput(design_school_location, fulfillment_center_location, landscaper_dropoff, drone_dropoff);
-    //             if (score > best_score){
-    //                 best_score = score;
-    //             }
-    //         }
-    //     }
-    //     // System.out.println("End base layout score " + Clock.getBytecodeNum());
-
-    //     return best_score;
-
-    // }
-
-    // static double baseLayoutScoreFullInput(MapLocation design_school_location, MapLocation fulfillment_center_location, MapLocation landscaper_dropoff, MapLocation drone_dropoff) throws GameActionException{
-    //     MapLocation[] base_bounds = getBaseBounds();
-    //     int largest_distance_from_HQ = 0;
-    //     // System.out.println("Start base layout score full"+ Clock.getBytecodeNum());
-
-    //     for (int i = 0; i != 4; i++){
-    //         int dist = 0;
-    //         switch(i){
-    //             case 0: // Right
-    //                 dist = rc.getMapWidth() - 1 - base_bounds[1].x;   
-    //                 break;
-    //             case 1: // Up
-    //                 dist = rc.getMapHeight() - 1 - base_bounds[1].y;   
-    //                 break;
-    //             case 2: // Left
-    //                 dist = base_bounds[0].x;   
-    //                 break;
-    //             case 3: // Down
-    //                 dist = base_bounds[0].y;   
-    //                 break;
-    //         }
-    //         if (dist > largest_distance_from_HQ){
-    //             largest_distance_from_HQ = dist;
-    //         }
-    //     }
-    //     double score = 0;
-    //     if (landscaper_dropoff.isAdjacentTo(HQ_loc) || drone_dropoff.isAdjacentTo(HQ_loc)){
-    //         score += 5000;
-    //     }
-    //     if (landscaper_dropoff.isAdjacentTo(drone_dropoff)){
-    //         score += 1000;
-    //     }
-    //     double exit_score = 0;
-    //     for (int i = 0; i != 4; i++){
-    //         // Check if drone dropoff near exit. Calculate exit score
-    //         // Bonus if landscaper dropoff is near same exit and FC
-    //         double exit_score_i = 0;
-    //         switch(i){
-    //             case 0: // Right
-    //                 if (drone_dropoff.x == base_bounds[1].x){
-    //                     exit_score_i = (rc.getMapWidth() - 1 - base_bounds[1].x)*500.0/largest_distance_from_HQ;
-    //                     if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.x == base_bounds[1].x){
-    //                         exit_score_i += 100;
-    //                     }
-    //                 }
-    //                 break;
-    //             case 1: // Up
-    //                 if (drone_dropoff.y == base_bounds[1].y){
-    //                     exit_score_i = (rc.getMapHeight() - 1 - base_bounds[1].y)*500.0/largest_distance_from_HQ;
-    //                     if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.y == base_bounds[1].y){
-    //                         exit_score_i += 100;
-    //                     }
-    //                 }
-    //                 break;
-    //             case 2: // Left
-    //                 if (drone_dropoff.x == base_bounds[0].x){
-    //                     exit_score_i = base_bounds[0].x*500.0/largest_distance_from_HQ;
-    //                     if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.x == base_bounds[0].x){
-    //                         exit_score_i += 100;
-    //                     }
-    //                 }
-    //                 break;
-    //             case 3: // Down
-    //                 if (drone_dropoff.y == base_bounds[0].y){
-    //                     exit_score_i = base_bounds[0].y*500.0/largest_distance_from_HQ;
-    //                     if (fulfillment_center_location.isAdjacentTo(landscaper_dropoff) && landscaper_dropoff.y == base_bounds[0].y){
-    //                         exit_score_i += 100;
-    //                     }
-    //                 }
-    //                 break;
-    //         }
-    //         if (exit_score_i > exit_score){
-    //             exit_score = exit_score_i;
-    //         }
-    //     }
-
-    //     // Could add score for vaporator continuity
-
-    //     score += exit_score;
-    //     // System.out.println("End base layout score full " + Clock.getBytecodeNum());
-
-    //     return score;
-    // }
 
     static void runMiner() throws GameActionException {
         readBlockChain();
@@ -2236,8 +2030,6 @@ public strictfp class RobotPlayer {
     static void runDesignSchool() throws GameActionException {
         updateMapRobots();
         updateDropoffLocations();
-
-        // If no enemy units nearby and 2 landscapers on walls and not enough vaporators, don't build
 
         if ((rc.getTeamSoup() >= 350 || rc.getRoundNum() > 800) && HQ_loc != null){
             RobotInfo robot = null;
@@ -2319,7 +2111,20 @@ public strictfp class RobotPlayer {
                     count_drone++;
                 }
             }
-            if (count_LS < 2)
+            boolean base_enclosed = true;
+            int elevation_HQ = 0;
+            if (HQ_loc != null && rc.canSenseLocation(HQ_loc)){
+                elevation_HQ = rc.senseElevation(HQ_loc);
+            }
+            if (wallLocation[0] != null){
+                for (MapLocation wl : wallLocation){
+                    if (rc.canSenseLocation(wl) && rc.senseElevation(wl) - elevation_HQ <= 3){
+                        base_enclosed = false;
+                        break;
+                    }
+                }
+            }
+            if (count_LS < 2 && !base_enclosed) // TO DO: May need to check if landscaper_dropoff is occupied if landscapers stop getting built
                 return;
             if (count_drone > 0) // TO DO: Maybe will not work well against rushes
                 return;
@@ -2625,13 +2430,7 @@ public strictfp class RobotPlayer {
             }
         }
 
-
-        // For all inside base that do not have a friendly building, check elevation is +/- 3 of HQ
-
-        // Sense if any of inside walls need to be dug and unbury if so
-
         MapLocation current_location = rc.getLocation();
-        // If about to dig while standing near drone drop off location, keep moving first
         if (isOnWall(current_location)){
             // If all spots between you and exit (closest dir) are blocked, try to step in other direction
             boolean jam = true;
@@ -2752,7 +2551,6 @@ public strictfp class RobotPlayer {
         int value = 10000;
         for(int i=0; i<16; i++){
             if(rc.canSenseLocation(wallLocation[i])){
-                // if(rc.senseElevation(returnLoc) > rc.senseElevation(wallLocation[i]) + 3*(int)Math.sqrt(rc.getLocation().distanceSquaredTo(wallLocation[i]))){
                 int num_steps = Math.max(0, Math.abs(current_location.x - wallLocation[i].x)-1)+Math.max(0, Math.abs(current_location.y - wallLocation[i].y)-1)+1;
                 int value_i = rc.senseElevation(wallLocation[i]) + 3*num_steps;
                 if(value_i < value){
@@ -2766,7 +2564,6 @@ public strictfp class RobotPlayer {
     }
     
     static void attackDroneMission() throws GameActionException {
-        RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc)));
         if(rc.getRoundNum() >= 1450 && rc.canSenseLocation(enemy_HQ_loc)) droneRush();
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
         else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
@@ -2815,17 +2612,12 @@ public strictfp class RobotPlayer {
 
     static void tryDefaultDroneMission() throws GameActionException{
         System.out.println(turnCount);
-        // If inside base and no landscaper available, go outside
-        // If inside base and landscaper available and not at drone dropoff, go to drone drop off
-        // If at drone drop off and there is a landscaper available, pick and place
-        // If outside, do drone stuff
 
-        // Fix issue where the drone must step on the square it picked up from before it can place down
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
         
-        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !(rc.getLocation().isAdjacentTo(HQ_loc)) && !(rc.isCurrentlyHoldingUnit())){
+        if(rc.getRoundNum() > 1200 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation()) && !(rc.isCurrentlyHoldingUnit())){
             attackDroneMission();
             return;
         }
@@ -3440,7 +3232,8 @@ public strictfp class RobotPlayer {
                     destination_occupied = rc.isLocationOccupied(destination);
                 if (onTheMap(destination) && (!rc.canSenseLocation(destination) || ((!destination_occupied || (allow_picking_up_units && robot != null && rc.canPickUpUnit(robot.getID()))) &&
                         (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
-                        !visited.contains(destination) && !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0))) && 
+                        (rc.sensePollution(destination) < 4000 || rc.sensePollution(destination) <= rc.sensePollution(current_location)) && !visited.contains(destination) &&
+                        !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0))) && 
                         (base_bounds == null || isInsideBase(base_bounds, destination))){
                     if (allow_picking_up_units){
                         holding_unit_at_step = destination_occupied;
@@ -3710,8 +3503,6 @@ public strictfp class RobotPlayer {
     }
 
     static void updateFromReport (Report report) throws GameActionException{
-        // Update mission status
-        // Update enemy HQ loc
 
         switch(report.report_type){
             case SOUP:
@@ -4049,12 +3840,6 @@ public strictfp class RobotPlayer {
                 report = report_queue.get(i);
                 int report_bits = 0;
 
-                // Check SIZE
-                // report_bits += 5 + 5; // Data Type Tag #bits Mission type #bits
-                // report_bits += (5 + 15)*mission.robot_ids.size(); // Robot ID #bits
-                // report_bits += 5 + 12; // Location # bits
-                // report_bits += 5; // End message label
-
                 if (report_bits > remaining_bits){
                     addToMessage(message, remaining_bits, 0, Label.END_MESSAGE.ordinal(), 0);
                     addPasswordAndHashToMessage(message);
@@ -4109,40 +3894,5 @@ public strictfp class RobotPlayer {
                 report_queue.remove(j);
             }
         }
-        // System.out.println(rc.getRoundMessages(turnCount-1));
     }
 }
-/*
- HQ:
-    Does its own thing
-    Limit amount of miners it creates
- 
- MINERS:
-    CONSTRUCTION
-        Would need a location and a buildingType
-    MINING
-        Unsure what is needed (I would assume the location of soup and location of refinery/HQ)
-    DEFAULT
-        Move randomly looking for soup
- LANDSCAPERS:
-    BUILD WALL
-        Would need location to move to
-    DEFEND
-        Would need to know where location of HQ is
- 
- DRONES:
-    CARRY ROBOT
-        Would need a location of Robot and a location to drop
-    DEFEND
-        Location of enemy unit to pick up and location to drop (Water)
- 
- DESIGN_SCHOOL:
-    PRODUCE
-        just an indicator to produce a landscaper
- 
- FULFILLMENT_CENTER:
-    PRODUCE
-        just an indicator to produce a drone
- 
- 
- */

@@ -2319,7 +2319,20 @@ public strictfp class RobotPlayer {
                     count_drone++;
                 }
             }
-            if (count_LS < 2)
+            boolean base_enclosed = true;
+            int elevation_HQ = 0;
+            if (HQ_loc != null && rc.canSenseLocation(HQ_loc)){
+                elevation_HQ = rc.senseElevation(HQ_loc);
+            }
+            if (wallLocation[0] != null){
+                for (MapLocation wl : wallLocation){
+                    if (rc.canSenseLocation(wl) && rc.senseElevation(wl) - elevation_HQ <= 3){
+                        base_enclosed = false;
+                        break;
+                    }
+                }
+            }
+            if (count_LS < 2 && !base_enclosed) // TO DO: May need to check if landscaper_dropoff is occupied if landscapers stop getting built
                 return;
             if (count_drone > 0) // TO DO: Maybe will not work well against rushes
                 return;

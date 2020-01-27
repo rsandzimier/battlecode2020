@@ -2968,7 +2968,6 @@ public strictfp class RobotPlayer {
         else;
     }
 
-
     static void tryDefaultDroneMission() throws GameActionException{
         MapLocation[] base_bounds = getBaseBounds();
         MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
@@ -2987,8 +2986,13 @@ public strictfp class RobotPlayer {
             
         //RobotInfo robotOnWall = null;
         // if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
-        if(HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) && !rc.getLocation().isWithinDistanceSquared(HQ_loc,GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED) && Math.max(Math.abs(rc.getLocation().x - center.x),Math.abs(rc.getLocation().y - center.y)) <= 3 && !rc.isCurrentlyHoldingUnit()) return;
+        if(HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) &&
+                !rc.getLocation().isWithinDistanceSquared(HQ_loc,GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED) &&
+                Math.max(Math.abs(rc.getLocation().x - center.x),Math.abs(rc.getLocation().y - center.y)) <= 3 &&
+                !rc.isCurrentlyHoldingUnit() && (drone_dropoff == null || Math.max(Math.abs(rc.getLocation().x - drone_dropoff.x),Math.abs(rc.getLocation().y - drone_dropoff.y)) > 2)){
 
+            return;
+    }
             /*
             if(myPartInTheDroneWall == null) myPartInTheDroneWall = rc.getLocation();
             if(rc.getRoundNum() > 1250){
@@ -3148,17 +3152,19 @@ public strictfp class RobotPlayer {
         }
 
         for(int i=0; i < nearby_robots.length; i++){
-            if(isOnWall(nearby_robots[i].getLocation()) && nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() != RobotType.LANDSCAPER && nearby_robots[i].getType().canBePickedUp()){
+            if(!isInsideBase(rc.getLocation()) && isOnWall(nearby_robots[i].getLocation()) && nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() != RobotType.LANDSCAPER && nearby_robots[i].getType().canBePickedUp()){
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.canPickUpUnit(nearby_robots[i].getID())){
                     rc.pickUpUnit(nearby_robots[i].getID()); // TO DO: Need to do something with this unit afterwards. Right now drone just holds it for rest of game
+                    System.out.println("Pick up: " + nearby_robots[i].getLocation());
                     return;
                 }
                 else{
-                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false, base_bounds, false);
+                    System.out.println("Move to pickup unit: " + nearby_robots[i].getLocation());
                     return;
                 }
             }
-            if (nearby_robots[i].getType() == RobotType.MINER && nearby_robots[i].getTeam() == rc.getTeam() &&
+            if (!isInsideBase(rc.getLocation()) && nearby_robots[i].getType() == RobotType.MINER && nearby_robots[i].getTeam() == rc.getTeam() && !isInsideBase(nearby_robots[i].getLocation()) &&
                     rc.canSenseLocation(nearby_robots[i].getLocation()) && 
                     rc.senseElevation(nearby_robots[i].getLocation()) <= GameConstants.getWaterLevel(rc.getRoundNum() + 30)){
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.canPickUpUnit(nearby_robots[i].getID())){
@@ -3166,7 +3172,7 @@ public strictfp class RobotPlayer {
                     return;
                 }
                 else{
-                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false);
+                    moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false, base_bounds, false);
                     return;
                 }
             }

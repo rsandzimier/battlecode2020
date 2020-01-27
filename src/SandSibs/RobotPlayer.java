@@ -2368,7 +2368,6 @@ public strictfp class RobotPlayer {
     
     static boolean tryBuryEnemyHQ() throws GameActionException {
         if(enemy_HQ_loc != null && rc.canSenseLocation(enemy_HQ_loc) && !(rc.canSenseLocation(HQ_loc))){
-            System.out.println("IM ON THEIR WALL!!");
             if(rc.getLocation().isAdjacentTo(enemy_HQ_loc)){
                 if(rc.getDirtCarrying() > 50) coverTheirHQ = true;
                 else if(rc.getDirtCarrying() == 0) coverTheirHQ = false;
@@ -2378,13 +2377,15 @@ public strictfp class RobotPlayer {
                     return true;
                 }
                 
-                for(Direction dir : directions){
-                    if(rc.canDigDirt(dir) && rc.isReady()){
-                        rc.digDirt(dir);
-                        return true;
+                else {
+                    for(Direction dir : directions){
+                        if(rc.canDigDirt(dir) && rc.isReady()){
+                            rc.digDirt(dir);
+                            return true;
+                        }
                     }
+                    return true;
                 }
-                return true;
             }
             
             else if(tryMove(rc.getLocation().directionTo(enemy_HQ_loc)));
@@ -2836,8 +2837,8 @@ public strictfp class RobotPlayer {
         
         //int enemyDroneCount = 0;
         
-        RobotInfo robotOnWall = null;
-        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
+        /*RobotInfo robotOnWall = null;
+        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {*/
             
             /*
             if(myPartInTheDroneWall == null) myPartInTheDroneWall = rc.getLocation();
@@ -2851,7 +2852,7 @@ public strictfp class RobotPlayer {
             }
             */
             
-            if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(HQ_loc.directionTo(rc.getLocation()))) {
+            /*if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(HQ_loc.directionTo(rc.getLocation()))) {
                 rc.dropUnit(HQ_loc.directionTo(rc.getLocation()));
                 return;
             }
@@ -2865,7 +2866,7 @@ public strictfp class RobotPlayer {
                 }
             }
             return;
-        }
+        }*/
         
         if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation())){
             attackDroneMission();

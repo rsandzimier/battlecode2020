@@ -2785,8 +2785,25 @@ public strictfp class RobotPlayer {
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
-    
-        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17) return;
+        
+        RobotInfo robotOnWall = null;
+        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
+            
+            if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(HQ_loc.directionTo(rc.getLocation()))) {
+                rc.dropUnit(HQ_loc.directionTo(rc.getLocation()));
+                return;
+            }
+            for(Direction dir : directions){
+                robotOnWall = rc.senseRobotAtLocation(rc.getLocation().add(dir));
+                if(robotOnWall != null){
+                    if((robotOnWall.getType() != RobotType.LANDSCAPER || robotOnWall.getTeam() != rc.getTeam()) && rc.isReady() && rc.canPickUpUnit(robotOnWall.getID())){
+                        rc.pickUpUnit(robotOnWall.getID());
+                        return;
+                    }
+                }
+            }
+            return;
+        }
         
         if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation())){
             attackDroneMission();

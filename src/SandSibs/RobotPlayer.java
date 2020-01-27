@@ -3576,6 +3576,25 @@ public strictfp class RobotPlayer {
         return true;
     }
 
+    static boolean closerToNetGun(MapLocation location){
+        int closest_netgun_current = 100000;
+        int closest_netgun_destination = 100000;
+        RobotInfo[] enemy_robots_in_range = rc.senseNearbyRobots(location, -1, rc.getTeam().opponent());
+        for (RobotInfo ri : enemy_robots_in_range){
+            if (ri.getType() == RobotType.HQ || ri.getType() == RobotType.NET_GUN){
+                int dist_current = rc.getLocation().distanceSquaredTo(ri.getLocation());
+                if (dist_current < closest_netgun_current){
+                    closest_netgun_current = dist_current;
+                }
+                int dist_destination = location.distanceSquaredTo(ri.getLocation());
+                if (dist_destination < closest_netgun_destination){
+                    closest_netgun_destination = dist_destination;
+                }
+            }
+        }
+        return closest_netgun_destination < closest_netgun_current;        
+    }    
+
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
@@ -3606,7 +3625,7 @@ public strictfp class RobotPlayer {
                 if (onTheMap(destination) && (!rc.canSenseLocation(destination) || ((!destination_occupied || (allow_picking_up_units && robot != null && rc.canPickUpUnit(robot.getID()))) &&
                         (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
                         (rc.sensePollution(destination) < 4000 || rc.sensePollution(destination) <= rc.sensePollution(current_location)) && !visited.contains(destination) &&
-                        !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0))) && 
+                        !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0)) || !closerToNetGun(destination)) && 
                         (base_bounds == null || isInsideBase(base_bounds, destination))){
                     if (allow_picking_up_units){
                         holding_unit_at_step = destination_occupied;

@@ -2835,10 +2835,19 @@ public strictfp class RobotPlayer {
         int rush_time = 10;
         int cooldown_time = 300;
 
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+
         boolean is_rush_period = rc.getRoundNum() >= first_rush_round && (rc.getRoundNum() - first_rush_round)%(cooldown_time + rush_time) < rush_time;
         if((is_rush_period && rc.canSenseLocation(enemy_HQ_loc))) droneRush();
         else if(rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 20));
-        else moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
+        else if(!rc.getLocation().isWithinDistanceSquared(enemy_HQ_loc, 25))
+            moveToLocationUsingBugPathing(enemy_HQ_loc, true, false);
+        else{
+            Direction dir = randomDirection();
+            if (outOfEnemyNetGunRange(rc.getLocation().add(dir)))
+                tryMove(dir);
+        }
     }
 
     static void moveToLocationUsingBasicPathing (MapLocation loc) throws GameActionException{
@@ -2959,7 +2968,7 @@ public strictfp class RobotPlayer {
             
         //RobotInfo robotOnWall = null;
         // if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
-        if(HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) && !rc.getLocation().isWithinDistanceSquared(HQ_loc,GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED) && Math.max(Math.abs(rc.getLocation().x - center.x),Math.abs(rc.getLocation().y - center.y)) <= 3) return;
+        if(HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) && !rc.getLocation().isWithinDistanceSquared(HQ_loc,GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED) && Math.max(Math.abs(rc.getLocation().x - center.x),Math.abs(rc.getLocation().y - center.y)) <= 3 && !rc.isCurrentlyHoldingUnit()) return;
 
             /*
             if(myPartInTheDroneWall == null) myPartInTheDroneWall = rc.getLocation();
@@ -3097,8 +3106,9 @@ public strictfp class RobotPlayer {
                 rc.getLocation().distanceSquaredTo(closest_water_to_enemy_HQ) < rc.getLocation().distanceSquaredTo(closest_water_to_HQ)){
                 drop_location = closest_water_to_enemy_HQ;
             }
+            System.out.println("Drop location: " + drop_location);
             if (drop_location != null)
-                moveToLocationUsingBugPathing(drop_location);
+                moveToLocationUsingBugPathing(drop_location, true, false);
             else
                 tryMove(randomDirection());
             return;
@@ -3399,29 +3409,34 @@ public strictfp class RobotPlayer {
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location) throws GameActionException{
-        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),null);
+        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),null,true);
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns) throws GameActionException{
-        moveToLocationUsingBugPathing(location, avoid_net_guns, rc.getType().canFly(),null);
+        moveToLocationUsingBugPathing(location, avoid_net_guns, rc.getType().canFly(),null,true);
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location, MapLocation[] base_bounds) throws GameActionException{
-        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),base_bounds);
+        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),base_bounds, true);
+    }
+
+    static void moveToLocationUsingBugPathing(MapLocation location, MapLocation[] base_bounds, boolean stay_inside) throws GameActionException{
+        moveToLocationUsingBugPathing(location, rc.getType().canFly(), rc.getType().canFly(),base_bounds, stay_inside);
     }
 
     static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units) throws GameActionException{
-        moveToLocationUsingBugPathing(location, avoid_net_guns, allow_picking_up_units, null);
+        moveToLocationUsingBugPathing(location, avoid_net_guns, allow_picking_up_units, null, true);
     }
 
-    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException{
+    static void moveToLocationUsingBugPathing(MapLocation location, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds, boolean stay_inside) throws GameActionException{
+        // stay_inside. If true, stay in bounds. If false, stay out of bounds. If base_bounds is null, go anywhere
         if (!goal_location.equals(location))
         {
             goal_location = location;
             visited.clear();
         }
-        PathResult path_result_left = bugPathPlan(location,true, avoid_net_guns, allow_picking_up_units, base_bounds);
-        PathResult path_result_right = bugPathPlan(location,false, avoid_net_guns, allow_picking_up_units, base_bounds);
+        PathResult path_result_left = bugPathPlan(location,true, avoid_net_guns, allow_picking_up_units, base_bounds, stay_inside);
+        PathResult path_result_right = bugPathPlan(location,false, avoid_net_guns, allow_picking_up_units, base_bounds, stay_inside);
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
@@ -3559,11 +3574,11 @@ public strictfp class RobotPlayer {
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left) throws GameActionException {
-        return bugPathPlan(goal, turn_left, rc.getType().canFly(), rc.getType().canFly(),null);
+        return bugPathPlan(goal, turn_left, rc.getType().canFly(), rc.getType().canFly(),null,true);
     }
 
     static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns) throws GameActionException {
-        return bugPathPlan(goal, turn_left, avoid_net_guns, rc.getType().canFly(),null);
+        return bugPathPlan(goal, turn_left, avoid_net_guns, rc.getType().canFly(),null,true);
     }
 
     static boolean outOfEnemyNetGunRange(MapLocation location){
@@ -3595,7 +3610,7 @@ public strictfp class RobotPlayer {
         return closest_netgun_destination < closest_netgun_current;        
     }    
 
-    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds) throws GameActionException {
+    static PathResult bugPathPlan(MapLocation goal, boolean turn_left, boolean avoid_net_guns, boolean allow_picking_up_units, MapLocation[] base_bounds, boolean stay_inside) throws GameActionException {
         MapLocation current_location = rc.getLocation();
         Direction dir = current_location.directionTo(goal);
         HashSet<MapLocation> visited_plan = new HashSet<MapLocation>();
@@ -3626,7 +3641,7 @@ public strictfp class RobotPlayer {
                         (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
                         (rc.sensePollution(destination) < 4000 || rc.sensePollution(destination) <= rc.sensePollution(current_location)) && !visited.contains(destination) &&
                         !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0)) || !closerToNetGun(destination)) && 
-                        (base_bounds == null || isInsideBase(base_bounds, destination))){
+                        (base_bounds == null || (stay_inside != isInsideBase(base_bounds, destination)))){
                     if (allow_picking_up_units){
                         holding_unit_at_step = destination_occupied;
                     }

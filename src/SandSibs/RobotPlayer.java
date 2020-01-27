@@ -357,26 +357,6 @@ public strictfp class RobotPlayer {
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
                         need_new_miner = false;
-                        
-                        if (enemy_HQ_loc != null){
-                            Report report = new Report();
-                            report.report_type = ReportType.ROBOT;
-                            report.location = enemy_HQ_loc;
-                            report.robot_type = RobotType.HQ;
-                            report.robot_team = false; 
-                            report_queue.add(report);
-                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
-                        }
-                        else{
-                            for (Symmetry sym : Symmetry.values()){
-                                if (!possible_symmetries.contains(sym)){
-                                    Report report = new Report();
-                                    report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
-                                    report.location = symmetric_HQ_locs[sym.ordinal()];
-                                    report_queue.add(report);
-                                }
-                            }
-                        }
                     }
                 }
                 if (need_new_miner){
@@ -384,6 +364,25 @@ public strictfp class RobotPlayer {
                         if (tryBuild(RobotType.MINER, dir)){
                             RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
                             addRobotToList(miners, new_miner.getID());
+                            if (enemy_HQ_loc != null){
+                                Report report = new Report();
+                                report.report_type = ReportType.ROBOT;
+                                report.location = enemy_HQ_loc;
+                                report.robot_type = RobotType.HQ;
+                                report.robot_team = false; 
+                                report_queue.add(report);
+                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                            }
+                            else{
+                                for (Symmetry sym : Symmetry.values()){
+                                    if (!possible_symmetries.contains(sym)){
+                                        Report report = new Report();
+                                        report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
+                                        report.location = symmetric_HQ_locs[sym.ordinal()];
+                                        report_queue.add(report);
+                                    }
+                                }
+                            }
                         }                        
                     }
                 }
@@ -2087,12 +2086,9 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            if (count_base_and_walls - count_base >= 2 && count_base > 0){
+            if ((count_base_and_walls - count_base >= 2 && count_base > 0) || ((count_base > 0 || count_base_and_walls - count_base >= 2 && vaporators.size() < 4)  && vaporators.size() < 4)){
                 return;
             }
-
-            if (count_base_and_walls - count_base >= 2 && vaporators.size() < 4)
-                return;
 
             if (robot == null && landscaper_dropoff != null && tryBuild(RobotType.LANDSCAPER, rc.getLocation().directionTo(landscaper_dropoff)))
                 return;
@@ -2352,7 +2348,21 @@ public strictfp class RobotPlayer {
     }
 
 
-
+    static boolean landscaperTryPathAlongWall(MapLocation loc) throws GameActionException {
+        int closest = 10000;
+        Direction closest_direction = null;
+        for (Direction dir : directions){
+            int dist = rc.getLocation().add(dir).distanceSquaredTo(loc);
+            if (isOnWall(rc.getLocation().add(dir)) && dist < closest){
+                closest = dist;
+                closest_direction = dir;
+            }
+        }   
+        if (closest_direction != null && tryMove(closest_direction)){
+            return true;
+        }  
+        return false;
+    }
 
     static void runLandscaper() throws GameActionException {
         updateMapDiscovered();
@@ -2372,24 +2382,6 @@ public strictfp class RobotPlayer {
 
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
-
-        // If at landscaper_dropoff && adjacent to miner && vaporator location not adjacent to miner and < 4 vaps
-        if (landscaper_dropoff != null && rc.getLocation().equals(landscaper_dropoff) && vaporators.size()<4){
-            RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
-            MapLocation miner_loc = null;
-            for (RobotInfo nr : nearby_robots){
-                if (nr.getType() == RobotType.MINER){
-                    miner_loc = nr.getLocation();
-                    break;
-                }
-            }
-            if (miner_loc != null){
-                MapLocation vap_loc = chooseVaporatorLocation();
-                if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc))){
-                    rc.disintegrate(); // TO DO: Verify this isn't breaking anything
-                }
-            }
-        }
 
         if(tryUnburyBuilding(HQ_loc)){
             return;
@@ -2423,7 +2415,6 @@ public strictfp class RobotPlayer {
                 break;
             }
         }
-
         if (!wall_flooded && rc.canSenseLocation(HQ_loc)){
             int hq_elevation = rc.senseElevation(HQ_loc);
             for (Direction dir : Direction.allDirections()){
@@ -2436,12 +2427,12 @@ public strictfp class RobotPlayer {
                     if (Math.abs(hq_elevation - elevation) <= 1){
                         continue;
                     }
-
                     if (elevation > hq_elevation){
                         if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDigDirt(rc.getLocation().directionTo(center.add(dir))) && !willFloodBase(center.add(dir))){
                             rc.digDirt(rc.getLocation().directionTo(center.add(dir)));
                             return;
                         }
+
                         if (rc.getLocation().isAdjacentTo(center.add(dir))){
                             Direction best_direction = null;
                             int lowest_elevation = 1000000;
@@ -2470,14 +2461,21 @@ public strictfp class RobotPlayer {
                                         return;
                                     }
                                 }
-                            }                            
+                            }  
                         }
                         else{
-                            moveToLocationUsingBugPathing(center.add(dir));
-
+                            if (isOnWall(rc.getLocation())){
+                                if (landscaperTryPathAlongWall(center.add(dir))){
+                                    return;
+                                }
+                            }
+                            else{
+                                moveToLocationUsingBugPathing(center.add(dir));
+                            }
                             if (!rc.isReady()){
                                 return;
                             }
+                            break;
                         }
 
                     }
@@ -2509,11 +2507,19 @@ public strictfp class RobotPlayer {
                             }                            
                         }
                         else{
-                            moveToLocationUsingBugPathing(center.add(dir));
+                            if (isOnWall(rc.getLocation())){
+                                if (landscaperTryPathAlongWall(center.add(dir))){
+                                    return;
+                                }
+                            }
+                            else{
+                                moveToLocationUsingBugPathing(center.add(dir));
+                            }
 
                             if (!rc.isReady()){
                                 return;
                             }
+                            break;
                         }
 
                     }
@@ -2523,6 +2529,7 @@ public strictfp class RobotPlayer {
 
         MapLocation current_location = rc.getLocation();
         if (isOnWall(current_location)){
+
             // If all spots between you and exit (closest dir) are blocked, try to step in other direction
             boolean jam = true;
             ArrayList<MapLocation> wall_locs = getWallLocationsToExit();
@@ -2587,8 +2594,12 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+            else{
+                if (landscaperTryPathAlongWall(buildLocation)){
+                    return;
+                }
+            }
 
-            moveToLocationUsingBugPathing(buildLocation);
             if (rc.isReady()){
                 for (Direction dir : directions){
                     MapLocation loc = current_location.add(dir);
@@ -2603,7 +2614,7 @@ public strictfp class RobotPlayer {
                         return;
                     }
                 }
-                for (Direction dir : directions){ // TO DO: Make sure that digging won't cause flooding of base
+                for (Direction dir : directions){
                     MapLocation dig_location = current_location.add(dir);
                     if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir) && !willFloodBase(dig_location)){
                         rc.digDirt(dir);
@@ -2611,6 +2622,7 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+
             return;
         }
 
@@ -2639,9 +2651,41 @@ public strictfp class RobotPlayer {
         if (isInsideBase(current_location) && target_wall != null && rc.canSenseLocation(target_wall) &&
              Math.abs(rc.senseElevation(target_wall) - rc.senseElevation(rc.getLocation())) > 3
              && landscaper_dropoff != null){
+            moveToLocationUsingBugPathing(landscaper_dropoff);
         }
         else if (target_wall != null){
-            moveToLocationUsingBugPathing(target_wall);
+            if (isOnWall(rc.getLocation())){
+                if (landscaperTryPathAlongWall(target_wall)){
+                    return;
+                }
+            }
+            else{
+                moveToLocationUsingBugPathing(target_wall);
+            }
+        }
+        if (!rc.isReady())
+            return;
+        if (vaporators.size()<4){
+            RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
+            MapLocation vap_loc = chooseVaporatorLocation();
+            for (RobotInfo nr : nearby_robots){
+                if (nr.getType() == RobotType.MINER){
+                    MapLocation miner_loc = nr.getLocation();
+                    if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc) || rc.getLocation().equals(vap_loc))){
+                        if (landscaper_dropoff != null && rc.getLocation().isAdjacentTo(landscaper_dropoff) &&
+                                !rc.getLocation().equals(landscaper_dropoff) && tryMove(rc.getLocation().directionTo(landscaper_dropoff))){
+                            return;
+                        }
+                        for (Direction dir : directions){
+                            if (tryMove(dir)){
+                                return;
+                            }
+                        }
+                        rc.disintegrate(); // TO DO: Verify this isn't breaking anything
+                        return;
+                    }
+                }
+            }
         }
 
         if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(drone_dropoff) && rc.canSenseLocation(landscaper_dropoff)){

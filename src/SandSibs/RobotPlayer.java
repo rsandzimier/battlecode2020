@@ -344,11 +344,14 @@ public strictfp class RobotPlayer {
                 if (design_school_count > 0 && fulfillment_center_count > 0 && vaporator_count >= 4){
                     need_new_miner = false;
                 }
+                Report new_report = null;
                 for (RobotStatus rs : miners){
                     if (!miner_in_base_IDs.contains(rs.robot_id)) continue;
                     if (rs.missions.size() != 0 && rs.missions.get(0).mission_type == MissionType.BUILD_BASE){
                         new_mission = null;
                         need_new_miner = false;
+
+                        new_report = null;
                         break;
                     }
                     if (new_mission == null && (rs.missions.size() == 0 || rs.missions.get(0).mission_type == MissionType.MINE)){
@@ -356,6 +359,23 @@ public strictfp class RobotPlayer {
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
                         need_new_miner = false;
+
+                        new_report = new Report();
+                        if (enemy_HQ_loc != null){
+                            new_report.report_type = ReportType.ROBOT;
+                            new_report.location = enemy_HQ_loc;
+                            new_report.robot_type = RobotType.HQ;
+                            new_report.robot_team = false; 
+                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                        }
+                        else{
+                            for (Symmetry sym : Symmetry.values()){
+                                if (!possible_symmetries.contains(sym)){
+                                    new_report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
+                                    new_report.location = symmetric_HQ_locs[sym.ordinal()];
+                                }
+                            }
+                        }
                     }
                 }
                 if (need_new_miner){
@@ -363,31 +383,16 @@ public strictfp class RobotPlayer {
                         if (tryBuild(RobotType.MINER, dir)){
                             RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
                             addRobotToList(miners, new_miner.getID());
-                            if (enemy_HQ_loc != null){
-                                Report report = new Report();
-                                report.report_type = ReportType.ROBOT;
-                                report.location = enemy_HQ_loc;
-                                report.robot_type = RobotType.HQ;
-                                report.robot_team = false; 
-                                report_queue.add(report);
-                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
-                            }
-                            else{
-                                for (Symmetry sym : Symmetry.values()){
-                                    if (!possible_symmetries.contains(sym)){
-                                        Report report = new Report();
-                                        report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
-                                        report.location = symmetric_HQ_locs[sym.ordinal()];
-                                        report_queue.add(report);
-                                    }
-                                }
-                            }
                         }                        
                     }
                 }
                 if (new_mission != null){
                     mission_queue.add(new_mission);
                 }
+                if (new_report != null){
+                    report_queue.add(new_report);
+                }
+
             } 
         }
         tryBlockchain();
@@ -769,6 +774,7 @@ public strictfp class RobotPlayer {
 
         while (exit_directions.size() > 0){
             ArrayList<MapLocation> locations_to_check = new ArrayList<MapLocation>();
+            
             for (Symmetry sym : possible_symmetries){
                 locations_to_check.add(symmetric_HQ_locs[sym.ordinal()]);
             }
@@ -4004,6 +4010,7 @@ public strictfp class RobotPlayer {
 
             while(i < report_queue.size()){
                 report = report_queue.get(i);
+
                 int report_bits = 0;
 
                 if (report_bits > remaining_bits){

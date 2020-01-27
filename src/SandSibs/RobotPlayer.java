@@ -17,8 +17,10 @@ public strictfp class RobotPlayer {
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
     
     static MapLocation droneSpawnLocation = null;
+    static MapLocation myPartInTheDroneWall = null;
     static int turnCount;
     static int helpUnitID;
+    static boolean coverTheirHQ = false;
     static boolean moveLS = true, helpUnit = false;
     static boolean enemyUnitInDrone = false, allyLandscaperUnitInDrone = false;
     static int LSBuild = 0, BuildDrone = 0;
@@ -2363,8 +2365,42 @@ public strictfp class RobotPlayer {
         }  
         return false;
     }
-
+    
+    static boolean tryBuryEnemyHQ() throws GameActionException {
+        if(enemy_HQ_loc != null && rc.canSenseLocation(enemy_HQ_loc) && !(rc.canSenseLocation(HQ_loc))){
+            System.out.println("IM ON THEIR WALL!!");
+            if(rc.getLocation().isAdjacentTo(enemy_HQ_loc)){
+                if(rc.getDirtCarrying() > 50) coverTheirHQ = true;
+                else if(rc.getDirtCarrying() == 0) coverTheirHQ = false;
+                
+                if(coverTheirHQ && rc.isReady() && rc.canDepositDirt(rc.getLocation().directionTo(enemy_HQ_loc))) {
+                    rc.depositDirt(rc.getLocation().directionTo(enemy_HQ_loc));
+                    return true;
+                }
+                
+                for(Direction dir : directions){
+                    if(rc.canDigDirt(dir) && rc.isReady()){
+                        rc.digDirt(dir);
+                        return true;
+                    }
+                }
+                return true;
+            }
+            
+            else if(tryMove(rc.getLocation().directionTo(enemy_HQ_loc)));
+            else if(rc.isReady() && rc.canDigDirt(rc.getLocation().directionTo(enemy_HQ_loc)) && rc.senseElevation(rc.getLocation().add(rc.getLocation().directionTo(enemy_HQ_loc))) - rc.senseElevation(rc.getLocation()) > 3){
+                rc.digDirt(rc.getLocation().directionTo(enemy_HQ_loc));
+            }
+            else if(rc.isReady() && rc.canDigDirt(Direction.CENTER)) rc.digDirt(Direction.CENTER);
+                
+            return true;
+        }
+        
+        return false;
+    }
+    
     static void runLandscaper() throws GameActionException {
+        readBlockChain();
         updateMapDiscovered();
         updateMapGoalLocation();
         updateDropoffLocations();
@@ -2373,6 +2409,10 @@ public strictfp class RobotPlayer {
 
         if (HQ_loc == null){
             tryMove(randomDirection());
+            return;
+        }
+        
+        if(tryBuryEnemyHQ()){
             return;
         }
 
@@ -2794,8 +2834,22 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
         
+        //int enemyDroneCount = 0;
+        
         RobotInfo robotOnWall = null;
         if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
+            
+            /*
+            if(myPartInTheDroneWall == null) myPartInTheDroneWall = rc.getLocation();
+            if(rc.getRoundNum() > 1250){
+                RobotInfo[] searchingForEnemyDrones = rc.senseNearbyRobots();
+                for(RobotInfo info : searchingForEnemyDrones){
+                    if(info.getTeam() != rc.getTeam() && info.getType() == rc.getType()) enemyDroneCount++;
+                }
+                if(enemyDroneCount <= 5) attackDroneMission();
+                else return;
+            }
+            */
             
             if(rc.isCurrentlyHoldingUnit() && rc.isReady() && rc.canDropUnit(HQ_loc.directionTo(rc.getLocation()))) {
                 rc.dropUnit(HQ_loc.directionTo(rc.getLocation()));

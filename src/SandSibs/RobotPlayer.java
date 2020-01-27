@@ -15,7 +15,8 @@ public strictfp class RobotPlayer {
     static Direction[] directions = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTHEAST, Direction.NORTHWEST, Direction.SOUTHEAST, Direction.SOUTHWEST};
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
-        
+    
+    static MapLocation droneSpawnLocation = null;
     static int turnCount;
     static int helpUnitID;
     static boolean moveLS = true, helpUnit = false;
@@ -2689,8 +2690,16 @@ public strictfp class RobotPlayer {
 
         if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(drone_dropoff) && rc.canSenseLocation(landscaper_dropoff)){
             RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
-            if (robot != null && robot.getType() == RobotType.LANDSCAPER && robot.getTeam() == rc.getTeam()){
+            if (robot != null && robot.getType() == RobotType.LANDSCAPER || robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam()){
                 rc.disintegrate(); // TO DO: Should test without this to make sure this isn't masking a problem
+                return;
+            }
+        }
+        if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(landscaper_dropoff) && rc.canSenseLocation(drone_dropoff)){
+            RobotInfo robot = rc.senseRobotAtLocation(drone_dropoff);
+            if (robot != null && robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam() && robot.isCurrentlyHoldingUnit()){
+                rc.disintegrate(); // TO DO: Should test without this to make sure this isn't masking a problem
+                return;
             }
         }
 
@@ -2775,13 +2784,17 @@ public strictfp class RobotPlayer {
     }
 
     static void tryDefaultDroneMission() throws GameActionException{
-        System.out.println(turnCount);
-
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+        
+        if(droneSpawnLocation == null){
+            droneSpawnLocation = rc.getLocation();
+        }
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
     
-        if(rc.getLocation().isWithinDistanceSquared(HQ_loc,18) && !(rc.getLocation().isWithinDistanceSquared(HQ_loc,10)) && rc.getLocation().distanceSquaredTo(HQ_loc) != 16 && rc.getLocation().distanceSquaredTo(HQ_loc) != 17) return;
+        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17) return;
         
         if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation())){
             attackDroneMission();
@@ -2840,9 +2853,6 @@ public strictfp class RobotPlayer {
             }
 
             if (!landscaper_in_base || no_dropoff_open){
-                MapLocation[] base_bounds = getBaseBounds();
-                MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
-
                 for (Direction dir : exit_priority){
                     if (center.add(dir).add(dir).isAdjacentTo(drone_dropoff)){
                         moveToLocationUsingBugPathing(center.add(dir).add(dir).add(dir).add(dir), false);
@@ -2931,10 +2941,14 @@ public strictfp class RobotPlayer {
         
         if(rc.canSenseLocation(HQ_loc)){
             Direction dir = randomDirection(); // TO DO: Should do better than random. And when random direction is bad, should at least do something
+            while(!(rc.canMove(dir))){
+                dir = randomDirection();
+            }
             if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
                 tryMove(dir);
         }
         else moveToLocationUsingBugPathing(HQ_loc, true, false);
+        
     }
 
     static void runDeliveryDrone() throws GameActionException {
@@ -3247,8 +3261,8 @@ public strictfp class RobotPlayer {
                         elevation_old = rc.senseElevation(held_unit_location_pickup_during_pathing);
                     Direction best_direction = null;
                     for (Direction dir : directions){
-                        if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
-                            continue;
+                        // if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
+                        //     continue;
                         int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){

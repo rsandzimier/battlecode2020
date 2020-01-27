@@ -356,26 +356,6 @@ public strictfp class RobotPlayer {
                         new_mission.mission_type = MissionType.BUILD_BASE;
                         new_mission.robot_ids.add(rs.robot_id);
                         need_new_miner = false;
-                        
-                        if (enemy_HQ_loc != null){
-                            Report report = new Report();
-                            report.report_type = ReportType.ROBOT;
-                            report.location = enemy_HQ_loc;
-                            report.robot_type = RobotType.HQ;
-                            report.robot_team = false; 
-                            report_queue.add(report);
-                            last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
-                        }
-                        else{
-                            for (Symmetry sym : Symmetry.values()){
-                                if (!possible_symmetries.contains(sym)){
-                                    Report report = new Report();
-                                    report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
-                                    report.location = symmetric_HQ_locs[sym.ordinal()];
-                                    report_queue.add(report);
-                                }
-                            }
-                        }
                     }
                 }
                 if (need_new_miner){
@@ -383,6 +363,25 @@ public strictfp class RobotPlayer {
                         if (tryBuild(RobotType.MINER, dir)){
                             RobotInfo new_miner = rc.senseRobotAtLocation(HQ_loc.add(dir));
                             addRobotToList(miners, new_miner.getID());
+                            if (enemy_HQ_loc != null){
+                                Report report = new Report();
+                                report.report_type = ReportType.ROBOT;
+                                report.location = enemy_HQ_loc;
+                                report.robot_type = RobotType.HQ;
+                                report.robot_team = false; 
+                                report_queue.add(report);
+                                last_enemy_HQ_loc_broadcast_turn = rc.getRoundNum();
+                            }
+                            else{
+                                for (Symmetry sym : Symmetry.values()){
+                                    if (!possible_symmetries.contains(sym)){
+                                        Report report = new Report();
+                                        report.report_type = ReportType.NO_ROBOT; // TO DO: Verify this is okay. No guarantee there is actually no robot there. Just that it is not enemy HQ
+                                        report.location = symmetric_HQ_locs[sym.ordinal()];
+                                        report_queue.add(report);
+                                    }
+                                }
+                            }
                         }                        
                     }
                 }
@@ -2422,7 +2421,7 @@ public strictfp class RobotPlayer {
                 break;
             }
         }
-
+        System.out.println("Try level base");
         if (!wall_flooded && rc.canSenseLocation(HQ_loc)){
             int hq_elevation = rc.senseElevation(HQ_loc);
             for (Direction dir : Direction.allDirections()){
@@ -2519,9 +2518,12 @@ public strictfp class RobotPlayer {
                 }
             }
         }
+        System.out.println("Done leveling base");
 
         MapLocation current_location = rc.getLocation();
         if (isOnWall(current_location)){
+            System.out.println("On wall");
+
             // If all spots between you and exit (closest dir) are blocked, try to step in other direction
             boolean jam = true;
             ArrayList<MapLocation> wall_locs = getWallLocationsToExit();
@@ -2543,6 +2545,7 @@ public strictfp class RobotPlayer {
                     clear_exit = true;
                 }
             }
+            System.out.println("Jam: " + jam + " clear exit: " + clear_exit);
 
             if (jam && clear_exit){
                 if (wall_locs.size() > 1){
@@ -2570,6 +2573,9 @@ public strictfp class RobotPlayer {
             }
 
             MapLocation buildLocation = checkElevationsOfWall();
+            System.out.println("buildLocation: " + buildLocation);
+
+            System.out.println("Path to: " + buildLocation);
 
             if(rc.getLocation().equals(buildLocation) || rc.getLocation().isAdjacentTo(buildLocation)){
                 if(rc.canDepositDirt(current_location.directionTo(buildLocation))){
@@ -2586,9 +2592,27 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+            else{
+                int closest = 10000;
+                Direction closest_direction = null;
+                for (Direction dir : directions){
+                    int dist = current_location.add(dir).distanceSquaredTo(buildLocation);
+                    if (dist < closest){
+                        closest = dist;
+                        closest_direction = dir;
+                    }
+                }   
+                System.out.println("Closest direction: " + closest_direction);
+                if (closest_direction != null && tryMove(closest_direction)){
+                    return;
+                }  
+            }
 
-            moveToLocationUsingBugPathing(buildLocation);
+            System.out.println("Could not move closer to build location.");
+
+
             if (rc.isReady()){
+                System.out.println("Ready.");
                 for (Direction dir : directions){
                     MapLocation loc = current_location.add(dir);
                     if (!isOnWall(loc) || !rc.canSenseLocation(loc))
@@ -2602,7 +2626,7 @@ public strictfp class RobotPlayer {
                         return;
                     }
                 }
-                for (Direction dir : directions){ // TO DO: Make sure that digging won't cause flooding of base
+                for (Direction dir : directions){
                     MapLocation dig_location = current_location.add(dir);
                     if (!isInsideBase(dig_location) && !isOnWall(dig_location) && rc.canDigDirt(dir) && !willFloodBase(dig_location)){
                         rc.digDirt(dir);
@@ -2610,8 +2634,11 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+            System.out.println("Do nothing.");
+
             return;
         }
+        System.out.println("Not on wall");
 
         MapLocation target_wall = getWallLocationWithClosestElevation(current_location);
         if (current_location.isAdjacentTo(target_wall) && !isInsideBase(current_location)){

@@ -15,7 +15,8 @@ public strictfp class RobotPlayer {
     static Direction[] directions = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTHEAST, Direction.NORTHWEST, Direction.SOUTHEAST, Direction.SOUTHWEST};
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL, RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static Direction[] setWallDirections = {Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.NORTH};
-        
+    
+    static MapLocation droneSpawnLocation = null;
     static int turnCount;
     static int helpUnitID;
     static boolean moveLS = true, helpUnit = false;
@@ -2731,13 +2732,17 @@ public strictfp class RobotPlayer {
     }
 
     static void tryDefaultDroneMission() throws GameActionException{
-        System.out.println(turnCount);
-
+        MapLocation[] base_bounds = getBaseBounds();
+        MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
+        
+        if(droneSpawnLocation == null){
+            droneSpawnLocation = rc.getLocation();
+        }
         if(HQ_loc != null && wallLocation[0] == null) {
             setWallLocations();
         }
     
-        if(rc.getLocation().isWithinDistanceSquared(HQ_loc,18) && !(rc.getLocation().isWithinDistanceSquared(HQ_loc,10)) && rc.getLocation().distanceSquaredTo(HQ_loc) != 16 && rc.getLocation().distanceSquaredTo(HQ_loc) != 17) return;
+        if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17) return;
         
         if(rc.getRoundNum() > 1250 && enemy_HQ_loc != null && !isInsideBase(rc.getLocation()) && !isOnWall(rc.getLocation())){
             attackDroneMission();
@@ -2796,9 +2801,6 @@ public strictfp class RobotPlayer {
             }
 
             if (!landscaper_in_base || no_dropoff_open){
-                MapLocation[] base_bounds = getBaseBounds();
-                MapLocation center = base_bounds[0].add(Direction.NORTHEAST);
-
                 for (Direction dir : exit_priority){
                     if (center.add(dir).add(dir).isAdjacentTo(drone_dropoff)){
                         moveToLocationUsingBugPathing(center.add(dir).add(dir).add(dir).add(dir), false);
@@ -2887,10 +2889,14 @@ public strictfp class RobotPlayer {
         
         if(rc.canSenseLocation(HQ_loc)){
             Direction dir = randomDirection(); // TO DO: Should do better than random. And when random direction is bad, should at least do something
+            while(!(rc.canMove(dir))){
+                dir = randomDirection();
+            }
             if (!isInsideBase(rc.getLocation().add(dir)) && !isOnWall(rc.getLocation().add(dir)))
                 tryMove(dir);
         }
         else moveToLocationUsingBugPathing(HQ_loc, true, false);
+        
     }
 
     static void runDeliveryDrone() throws GameActionException {

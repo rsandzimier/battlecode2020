@@ -502,8 +502,10 @@ public strictfp class RobotPlayer {
 
         if (isInsideBase(base_bounds, rc.getLocation())){
             moveToLocationUsingBugPathing(location, base_bounds);
+            System.out.println("Going to location: " + location);
             if (rc.isReady()){
-                rc.disintegrate();
+                //rc.disintegrate();
+                ;
             }
         }
         else {
@@ -2979,29 +2981,31 @@ public strictfp class RobotPlayer {
             setWallLocations();
         }
         
-        //int enemyDroneCount = 0;
+        int enemyDroneCount = 0;
         
         /*RobotInfo robotOnWall = null;
         if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {*/
             
         //RobotInfo robotOnWall = null;
         // if(rc.getLocation().isWithinDistanceSquared(center,18) && !(rc.getLocation().isWithinDistanceSquared(center,8)) && !(rc.getLocation().isWithinDistanceSquared(droneSpawnLocation,5)) && rc.getLocation().distanceSquaredTo(center) != 16 && rc.getLocation().distanceSquaredTo(center) != 17 && HQ_loc != null) {
-        if(HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) &&
+        if(HQ_loc != null && enemy_HQ_loc != null && !isOnWall(rc.getLocation()) && !isInsideBase(rc.getLocation()) &&
                 !rc.getLocation().isWithinDistanceSquared(HQ_loc,GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED) &&
                 Math.max(Math.abs(rc.getLocation().x - center.x),Math.abs(rc.getLocation().y - center.y)) <= 3 &&
                 !rc.isCurrentlyHoldingUnit() && (drone_dropoff == null || Math.max(Math.abs(rc.getLocation().x - drone_dropoff.x),Math.abs(rc.getLocation().y - drone_dropoff.y)) > 2)){
-
-            return;
-    }
-            /*
+            
             if(myPartInTheDroneWall == null) myPartInTheDroneWall = rc.getLocation();
-            if(rc.getRoundNum() > 1250){
+            if(rc.getRoundNum() > first_migration_round){
                 RobotInfo[] searchingForEnemyDrones = rc.senseNearbyRobots();
                 for(RobotInfo info : searchingForEnemyDrones){
                     if(info.getTeam() != rc.getTeam() && info.getType() == rc.getType()) enemyDroneCount++;
                 }
-                if(enemyDroneCount <= 5) attackDroneMission();
+                if(enemyDroneCount <= 5 && rc.getRoundNum() > first_migration_round) attackDroneMission();
                 else return;
+            }
+            return;
+        }
+            /*
+
             }
             */
             
@@ -3155,12 +3159,10 @@ public strictfp class RobotPlayer {
             if(!isInsideBase(rc.getLocation()) && isOnWall(nearby_robots[i].getLocation()) && nearby_robots[i].getTeam() == ourTeam && nearby_robots[i].getType() != RobotType.LANDSCAPER && nearby_robots[i].getType().canBePickedUp()){
                 if(rc.getLocation().isAdjacentTo(nearby_robots[i].getLocation()) && rc.canPickUpUnit(nearby_robots[i].getID())){
                     rc.pickUpUnit(nearby_robots[i].getID()); // TO DO: Need to do something with this unit afterwards. Right now drone just holds it for rest of game
-                    System.out.println("Pick up: " + nearby_robots[i].getLocation());
                     return;
                 }
                 else{
                     moveToLocationUsingBugPathing(nearby_robots[i].getLocation(), true, false, base_bounds, false);
-                    System.out.println("Move to pickup unit: " + nearby_robots[i].getLocation());
                     return;
                 }
             }
@@ -3481,6 +3483,11 @@ public strictfp class RobotPlayer {
 
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
+
+        System.out.println("Steps");
+        System.out.println("Left: " + left_steps + " right: " + right_steps);
+        System.out.println("Direction");
+        System.out.println("Left: " + path_result_left.direction + " right: " + path_result_right.direction);
 
         if (left_steps <= right_steps){
             if (allow_picking_up_units && rc.canSenseLocation(rc.getLocation().add(path_result_left.direction))){

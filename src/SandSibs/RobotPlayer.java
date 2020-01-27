@@ -2371,24 +2371,6 @@ public strictfp class RobotPlayer {
         if (!rc.isReady()) // TO DO: Is there anything we want landscapers to do when they aren't ready
             return;
 
-        // If at landscaper_dropoff && adjacent to miner && vaporator location not adjacent to miner and < 4 vaps
-        if (landscaper_dropoff != null && rc.getLocation().equals(landscaper_dropoff) && vaporators.size()<4){
-            RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
-            MapLocation miner_loc = null;
-            for (RobotInfo nr : nearby_robots){
-                if (nr.getType() == RobotType.MINER){
-                    miner_loc = nr.getLocation();
-                    break;
-                }
-            }
-            if (miner_loc != null){
-                MapLocation vap_loc = chooseVaporatorLocation();
-                if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc))){
-                    rc.disintegrate(); // TO DO: Verify this isn't breaking anything
-                }
-            }
-        }
-
         if(tryUnburyBuilding(HQ_loc)){
             return;
         }
@@ -2665,9 +2647,28 @@ public strictfp class RobotPlayer {
         if (isInsideBase(current_location) && target_wall != null && rc.canSenseLocation(target_wall) &&
              Math.abs(rc.senseElevation(target_wall) - rc.senseElevation(rc.getLocation())) > 3
              && landscaper_dropoff != null){
+            moveToLocationUsingBugPathing(landscaper_dropoff);
         }
         else if (target_wall != null){
             moveToLocationUsingBugPathing(target_wall);
+        }
+        if (!rc.isReady())
+            return;
+        if (landscaper_dropoff != null && rc.getLocation().equals(landscaper_dropoff) && vaporators.size()<4){
+            RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
+            MapLocation miner_loc = null;
+            for (RobotInfo nr : nearby_robots){
+                if (nr.getType() == RobotType.MINER){
+                    miner_loc = nr.getLocation();
+                    break;
+                }
+            }
+            if (miner_loc != null){
+                MapLocation vap_loc = chooseVaporatorLocation();
+                if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc))){
+                    rc.disintegrate(); // TO DO: Verify this isn't breaking anything
+                }
+            }
         }
 
         if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(drone_dropoff) && rc.canSenseLocation(landscaper_dropoff)){

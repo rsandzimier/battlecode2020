@@ -502,10 +502,8 @@ public strictfp class RobotPlayer {
 
         if (isInsideBase(base_bounds, rc.getLocation())){
             moveToLocationUsingBugPathing(location, base_bounds);
-            System.out.println("Going to location: " + location);
             if (rc.isReady()){
-                //rc.disintegrate();
-                ;
+                rc.disintegrate();
             }
         }
         else {
@@ -3484,11 +3482,6 @@ public strictfp class RobotPlayer {
         int left_steps = path_result_left.steps + Math.max(Math.abs(path_result_left.end_location.x - location.x), Math.abs(path_result_left.end_location.y - location.y));
         int right_steps = path_result_right.steps + Math.max(Math.abs(path_result_right.end_location.x - location.x), Math.abs(path_result_right.end_location.y - location.y));
 
-        System.out.println("Steps");
-        System.out.println("Left: " + left_steps + " right: " + right_steps);
-        System.out.println("Direction");
-        System.out.println("Left: " + path_result_left.direction + " right: " + path_result_right.direction);
-
         if (left_steps <= right_steps){
             if (allow_picking_up_units && rc.canSenseLocation(rc.getLocation().add(path_result_left.direction))){
                 RobotInfo robot = rc.senseRobotAtLocation(rc.getLocation().add(path_result_left.direction));
@@ -3694,7 +3687,7 @@ public strictfp class RobotPlayer {
                         (ignoreElevation || (!rc.senseFlooding(destination) && Math.abs(rc.senseElevation(destination)-rc.senseElevation(current_location)) <= 3)) &&
                         (rc.sensePollution(destination) < 4000 || rc.sensePollution(destination) <= rc.sensePollution(current_location)) && !visited.contains(destination) &&
                         !visited_plan.contains(destination))) && (!avoid_net_guns || (outOfEnemyNetGunRange(destination) && (dir.getDeltaX()==0 || dir.getDeltaY() == 0)) || !closerToNetGun(destination)) && 
-                        (base_bounds == null || (stay_inside != isInsideBase(base_bounds, destination)))){
+                        (base_bounds == null || (stay_inside == isInsideBase(base_bounds, destination)))){
                     if (allow_picking_up_units){
                         holding_unit_at_step = destination_occupied;
                     }

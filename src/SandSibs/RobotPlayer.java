@@ -2085,12 +2085,9 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            if (count_base_and_walls - count_base >= 2 && count_base > 0){
+            if ((count_base_and_walls - count_base >= 2 && count_base > 0) || ((count_base > 0 || count_base_and_walls - count_base >= 2 && vaporators.size() < 4)  && vaporators.size() < 4)){
                 return;
             }
-
-            if (count_base_and_walls - count_base >= 2 && vaporators.size() < 4)
-                return;
 
             if (robot == null && landscaper_dropoff != null && tryBuild(RobotType.LANDSCAPER, rc.getLocation().directionTo(landscaper_dropoff)))
                 return;
@@ -2350,7 +2347,21 @@ public strictfp class RobotPlayer {
     }
 
 
-
+    static boolean landscaperTryPathAlongWall(MapLocation loc) throws GameActionException {
+        int closest = 10000;
+        Direction closest_direction = null;
+        for (Direction dir : directions){
+            int dist = rc.getLocation().add(dir).distanceSquaredTo(loc);
+            if (isOnWall(rc.getLocation().add(dir)) && dist < closest){
+                closest = dist;
+                closest_direction = dir;
+            }
+        }   
+        if (closest_direction != null && tryMove(closest_direction)){
+            return true;
+        }  
+        return false;
+    }
 
     static void runLandscaper() throws GameActionException {
         updateMapDiscovered();
@@ -2403,7 +2414,6 @@ public strictfp class RobotPlayer {
                 break;
             }
         }
-        System.out.println("Try level base");
         if (!wall_flooded && rc.canSenseLocation(HQ_loc)){
             int hq_elevation = rc.senseElevation(HQ_loc);
             for (Direction dir : Direction.allDirections()){
@@ -2416,12 +2426,12 @@ public strictfp class RobotPlayer {
                     if (Math.abs(hq_elevation - elevation) <= 1){
                         continue;
                     }
-
                     if (elevation > hq_elevation){
                         if (rc.getLocation().isAdjacentTo(center.add(dir)) && rc.canDigDirt(rc.getLocation().directionTo(center.add(dir))) && !willFloodBase(center.add(dir))){
                             rc.digDirt(rc.getLocation().directionTo(center.add(dir)));
                             return;
                         }
+
                         if (rc.getLocation().isAdjacentTo(center.add(dir))){
                             Direction best_direction = null;
                             int lowest_elevation = 1000000;
@@ -2450,14 +2460,21 @@ public strictfp class RobotPlayer {
                                         return;
                                     }
                                 }
-                            }                            
+                            }  
                         }
                         else{
-                            moveToLocationUsingBugPathing(center.add(dir));
-
+                            if (isOnWall(rc.getLocation())){
+                                if (landscaperTryPathAlongWall(center.add(dir))){
+                                    return;
+                                }
+                            }
+                            else{
+                                moveToLocationUsingBugPathing(center.add(dir));
+                            }
                             if (!rc.isReady()){
                                 return;
                             }
+                            break;
                         }
 
                     }
@@ -2489,22 +2506,28 @@ public strictfp class RobotPlayer {
                             }                            
                         }
                         else{
-                            moveToLocationUsingBugPathing(center.add(dir));
+                            if (isOnWall(rc.getLocation())){
+                                if (landscaperTryPathAlongWall(center.add(dir))){
+                                    return;
+                                }
+                            }
+                            else{
+                                moveToLocationUsingBugPathing(center.add(dir));
+                            }
 
                             if (!rc.isReady()){
                                 return;
                             }
+                            break;
                         }
 
                     }
                 }
             }
         }
-        System.out.println("Done leveling base");
 
         MapLocation current_location = rc.getLocation();
         if (isOnWall(current_location)){
-            System.out.println("On wall");
 
             // If all spots between you and exit (closest dir) are blocked, try to step in other direction
             boolean jam = true;
@@ -2527,7 +2550,6 @@ public strictfp class RobotPlayer {
                     clear_exit = true;
                 }
             }
-            System.out.println("Jam: " + jam + " clear exit: " + clear_exit);
 
             if (jam && clear_exit){
                 if (wall_locs.size() > 1){
@@ -2555,9 +2577,6 @@ public strictfp class RobotPlayer {
             }
 
             MapLocation buildLocation = checkElevationsOfWall();
-            System.out.println("buildLocation: " + buildLocation);
-
-            System.out.println("Path to: " + buildLocation);
 
             if(rc.getLocation().equals(buildLocation) || rc.getLocation().isAdjacentTo(buildLocation)){
                 if(rc.canDepositDirt(current_location.directionTo(buildLocation))){
@@ -2575,26 +2594,12 @@ public strictfp class RobotPlayer {
                 }
             }
             else{
-                int closest = 10000;
-                Direction closest_direction = null;
-                for (Direction dir : directions){
-                    int dist = current_location.add(dir).distanceSquaredTo(buildLocation);
-                    if (dist < closest){
-                        closest = dist;
-                        closest_direction = dir;
-                    }
-                }   
-                System.out.println("Closest direction: " + closest_direction);
-                if (closest_direction != null && tryMove(closest_direction)){
+                if (landscaperTryPathAlongWall(buildLocation)){
                     return;
-                }  
+                }
             }
 
-            System.out.println("Could not move closer to build location.");
-
-
             if (rc.isReady()){
-                System.out.println("Ready.");
                 for (Direction dir : directions){
                     MapLocation loc = current_location.add(dir);
                     if (!isOnWall(loc) || !rc.canSenseLocation(loc))
@@ -2616,11 +2621,9 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
-            System.out.println("Do nothing.");
 
             return;
         }
-        System.out.println("Not on wall");
 
         MapLocation target_wall = getWallLocationWithClosestElevation(current_location);
         if (current_location.isAdjacentTo(target_wall) && !isInsideBase(current_location)){
@@ -2650,23 +2653,36 @@ public strictfp class RobotPlayer {
             moveToLocationUsingBugPathing(landscaper_dropoff);
         }
         else if (target_wall != null){
-            moveToLocationUsingBugPathing(target_wall);
+            if (isOnWall(rc.getLocation())){
+                if (landscaperTryPathAlongWall(target_wall)){
+                    return;
+                }
+            }
+            else{
+                moveToLocationUsingBugPathing(target_wall);
+            }
         }
         if (!rc.isReady())
             return;
-        if (landscaper_dropoff != null && rc.getLocation().equals(landscaper_dropoff) && vaporators.size()<4){
+        if (vaporators.size()<4){
             RobotInfo[] nearby_robots = rc.senseNearbyRobots(2, rc.getTeam());
-            MapLocation miner_loc = null;
+            MapLocation vap_loc = chooseVaporatorLocation();
             for (RobotInfo nr : nearby_robots){
                 if (nr.getType() == RobotType.MINER){
-                    miner_loc = nr.getLocation();
-                    break;
-                }
-            }
-            if (miner_loc != null){
-                MapLocation vap_loc = chooseVaporatorLocation();
-                if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc))){
-                    rc.disintegrate(); // TO DO: Verify this isn't breaking anything
+                    MapLocation miner_loc = nr.getLocation();
+                    if (isInsideBase(miner_loc) && (!miner_loc.isAdjacentTo(vap_loc) || miner_loc.equals(vap_loc) || rc.getLocation().equals(vap_loc))){
+                        if (landscaper_dropoff != null && rc.getLocation().isAdjacentTo(landscaper_dropoff) &&
+                                !rc.getLocation().equals(landscaper_dropoff) && tryMove(rc.getLocation().directionTo(landscaper_dropoff))){
+                            return;
+                        }
+                        for (Direction dir : directions){
+                            if (tryMove(dir)){
+                                return;
+                            }
+                        }
+                        rc.disintegrate(); // TO DO: Verify this isn't breaking anything
+                        return;
+                    }
                 }
             }
         }

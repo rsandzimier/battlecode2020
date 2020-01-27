@@ -2690,8 +2690,16 @@ public strictfp class RobotPlayer {
 
         if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(drone_dropoff) && rc.canSenseLocation(landscaper_dropoff)){
             RobotInfo robot = rc.senseRobotAtLocation(landscaper_dropoff);
-            if (robot != null && robot.getType() == RobotType.LANDSCAPER && robot.getTeam() == rc.getTeam()){
+            if (robot != null && robot.getType() == RobotType.LANDSCAPER || robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam()){
                 rc.disintegrate(); // TO DO: Should test without this to make sure this isn't masking a problem
+                return;
+            }
+        }
+        if (rc.isReady() && landscaper_dropoff != null && drone_dropoff != null && current_location.equals(landscaper_dropoff) && rc.canSenseLocation(drone_dropoff)){
+            RobotInfo robot = rc.senseRobotAtLocation(drone_dropoff);
+            if (robot != null && robot.getType() == RobotType.DELIVERY_DRONE && robot.getTeam() == rc.getTeam() && robot.isCurrentlyHoldingUnit()){
+                rc.disintegrate(); // TO DO: Should test without this to make sure this isn't masking a problem
+                return;
             }
         }
 
@@ -3253,8 +3261,8 @@ public strictfp class RobotPlayer {
                         elevation_old = rc.senseElevation(held_unit_location_pickup_during_pathing);
                     Direction best_direction = null;
                     for (Direction dir : directions){
-                        if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
-                            continue;
+                        // if (isInsideBase(held_unit_location_pickup_during_pathing) != isInsideBase(rc.getLocation().add(dir)))
+                        //     continue;
                         int dist = rc.getLocation().add(dir).distanceSquaredTo(held_unit_location_pickup_during_pathing);
                         int elevation_new = 10000;
                         if (rc.canSenseLocation(rc.getLocation().add(dir))){

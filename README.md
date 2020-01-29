@@ -3,6 +3,8 @@ This is a collaboration between Ryan Sandzimier and Garrett Sandzimier for MIT's
 
 Our team placed in the top 16 out of 99 teams in the US qualifying tournament.
 
+![sample scrimmage](https://github.com/rsandzimier/battlecode2020/blob/master/sample_scrimmage.gif)
+
 ### Running on Linux
 Install Java Development Kit (JDK) version 8
 ```
